@@ -142,9 +142,9 @@ def _on_device_all_to_all_v(
     dim = output.shape[1]
     input_hdl = symm_mem.rendezvous(input, group=group)
     input_splits_hdl = symm_mem.rendezvous(input_splits, group=group)
-    # input_hdl.barrier()
+    input_hdl.barrier()
     # input_splits_hdl.barrier()
-    barrier_all_ipc[(1, )](input_hdl.rank, input_hdl.world_size, input_hdl.signal_pad_ptrs_dev)
+    # barrier_all_ipc[(1, )](input_hdl.rank, input_hdl.world_size, input_hdl.signal_pad_ptrs_dev)
 
     num_blocks = input_hdl.world_size * BLOCKS_PER_REMOTE_RANK
     kernel = on_device_all_to_all_v_kernel[(num_blocks, 1, 1)](
@@ -161,8 +161,8 @@ def _on_device_all_to_all_v(
         BLOCK_SIZE=BLOCK_SIZE,
         num_warps=16,
     )
-    barrier_all_ipc[(1, )](input_hdl.rank, input_hdl.world_size, input_hdl.signal_pad_ptrs_dev)
-    # input_hdl.barrier()
+    # barrier_all_ipc[(1, )](input_hdl.rank, input_hdl.world_size, input_hdl.signal_pad_ptrs_dev)
+    input_hdl.barrier()
     # input_splits_hdl.barrier()
     # log_triton_kernel(kernel)
     return output

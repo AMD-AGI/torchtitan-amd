@@ -396,13 +396,13 @@ class DeepSeekV3MoE(nn.Module):
                 self.experts_per_rank,
                 self.ep_size,
                 token_gather_buf.shape[0],
-                128,
+                1,
             )
-
-        permuted_indices = permuted_indices.narrow(0, 0, m_offsets[-1])
+            # mask = permuted_indices.ne(-1)
+            # permuted_indices = permuted_indices.masked_select(mask)
+            # permuted_indices = permuted_indices.narrow(0, 0, m_offsets[-1])
         # Permute the received tokens so that tokens for the same expert are contiguous.
         contig_tokens = token_gather_buf[permuted_indices]
-
         logger.info(f"Permuting {token_gather_buf.shape} with {permuted_indices.shape}, resulting {contig_tokens.shape}")
 
         # group gemm - handle all three group gemms (up, gate, down for all experts)
@@ -473,7 +473,8 @@ class DeepSeekV3MoE(nn.Module):
         # Setup parameters
         overflow_factor = 2
         total_tokens = batch_size * seq_len * self.top_k
-        max_tokens = total_tokens * overflow_factor
+        # max_tokens = total_tokens * overflow_factor
+        max_tokens = 8704
 
         OnDeviceAllToAllV.max_output_len = max_tokens
 
