@@ -27,6 +27,19 @@ if is_hip():
     from primus_turbo.pytorch.ops import grouped_gemm_fp8, grouped_gemm_fp8_blockwise
 
 
+# Simple global FP8 configuration for MoE
+_use_moe_fp8 = True
+
+def set_moe_fp8(enabled: bool):
+    """Set MoE FP8 mode."""
+    global _use_moe_fp8
+    _use_moe_fp8 = enabled
+
+def get_moe_fp8() -> bool:
+    """Get MoE FP8 mode."""
+    return _use_moe_fp8
+
+
 @dataclass
 class MoEArgs:
     num_experts: int = 8
@@ -175,7 +188,7 @@ def _run_experts_grouped_mm_rocm(
     assert x.dim() == 2
     num_tokens_per_expert = num_tokens_per_expert.to(torch.int64).to(x.device)
     
-    use_fp8 = True
+    use_fp8 = get_moe_fp8()
     if use_fp8:
         fp8_cfg = Float8QuantConfig(
             format=Format.E4M3,
@@ -436,6 +449,10 @@ class TokenReorderer(nn.Module):
 class MoE(nn.Module):
     def __init__(self, moe_args: MoEArgs, dim: int, hidden_dim: int):
         super().__init__()
+
+        # Set global FP8 mode based on moe_args
+        if hasattr(moe_args, 'use_turbo_fp8_gemm'):
+            set_moe_fp8(moe_args.use_turbo_fp8_gemm)
 
         num_experts = moe_args.num_experts
         self.experts = GroupedExperts(

@@ -13,18 +13,31 @@
 export HF_TOKEN=${HF_TOKEN:="your_hf_token"}    # please set your HF token here
 export WANDB_API_KEY=${WANDB_API_KEY:="your_wandb_token"}    # please set your WANDB token here
 # Setup the mount points for the host and container
-export HOST_MOUNT=${HOST_MOUNT:="/root/nfs_models/your_folder_name"}     # change this path to host dir intend to be attached to the docker
+export HOST_MOUNT=${HOST_MOUNT:="/mnt/models/your_folder"}     # change this path to host dir intend to be attached to the docker
 export CONTAINER_MOUNT=${CONTAINER_MOUNT:="/workspace"}      # change this path to development workspace path inside the docker
 
+MODEL_NAME=llama4-scout # llama4-scout, llama4-maverick, deepseek, llama3
 # Setup the config file and repo id for the model
-export CONFIG_FILE=${CONFIG_FILE:="torchtitan/experiments/llama4/train_configs/llama4_17bx16e.toml"}     
-export REPO_ID=${REPO_ID:="meta-llama/Llama-4-Scout-17B-16E"}                                         
-# export CONFIG_FILE="torchtitan/experiments/llama4/train_configs/llama4_17bx128e.toml" 
-# export REPO_ID="meta-llama/Llama-4-Maverick-17B-128E"                                       
+if [ "$MODEL_NAME" == "llama4-scout" ]; then
+  export CONFIG_FILE=${CONFIG_FILE:="torchtitan/experiments/llama4/train_configs/llama4_17bx16e.toml"}     
+  export REPO_ID=${REPO_ID:="meta-llama/Llama-4-Scout-17B-16E"} 
+elif [ "$MODEL_NAME" == "llama4-maverick" ]; then
+  export CONFIG_FILE=${CONFIG_FILE:="torchtitan/experiments/llama4/train_configs/llama4_17bx128e.toml"}     
+  export REPO_ID=${REPO_ID:="meta-llama/Llama-4-Maverick-17B-128E"} 
+elif [ "$MODEL_NAME" == "deepseek" ]; then
+  export CONFIG_FILE=${CONFIG_FILE:="torchtitan/models/deepseek_v3/train_configs/deepseek_v3_16b.toml"}  
+  export REPO_ID=${REPO_ID:="deepseek-ai/deepseek-moe-16b-base"}   
+elif [ "$MODEL_NAME" == "llama3" ]; then
+  export CONFIG_FILE=${CONFIG_FILE:="torchtitan/models/llama3/train_configs/llama3_8b.toml"}  
+  export REPO_ID=${REPO_ID:="meta-llama/Llama-3.1-8B"}
+else
+  echo "Please add new mode confing in the run_slurm_pretrain.sh file"
+  exit 1
+fi
+                           
 # Setup the turbo wheel file and torch version
 export TORCH_VERSION=${TORCH_VERSION:="2.9.0.dev20250825+rocm6.3"}                                   # torch version to install in the container
-export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+277eacc-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
-
+export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+2e40784-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
 export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"2"}
 
 echo "get first node"
@@ -46,6 +59,7 @@ echo "MASTER_PORT=$SLURM_MASTER_PORT"
 
 # Define the Docker image
 export NCCL_IB_HCA=${NCCL_IB_HCA:="bnxt_re0,bnxt_re1,bnxt_re2,bnxt_re3,bnxt_re4,bnxt_re5,bnxt_re7,bnxt_re8"} # modify based on the GPU NiC settings
+export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:="enp49s0f0np0"}
 echo $NCCL_IB_HCA
 
 export DOCKER_IMAGE=${DOCKER_IMAGE:-"docker.io/rocm/megatron-lm:v25.5_py310"}
@@ -79,6 +93,8 @@ docker run --rm \
  --env SLURM_PROCID=$SLURM_PROCID \
  --env SLURM_NODEID=$SLURM_NODEID \
  --env SLURM_NNODES=$SLURM_NNODES \
+ --env NCCL_IB_HCA=$NCCL_IB_HCA \
+ --env NCCL_SOCKET_IFNAME=$NCCL_SOCKET_IFNAME \
  --ipc=host --network=host --device=/dev/kfd --device=/dev/dri  --cap-add=SYS_PTRACE  --cap-add=CAP_SYS_ADMIN  \
  --security-opt seccomp=unconfined --group-add video --privileged --device=/dev/infiniband \
  -v $HOST_MOUNT:$CONTAINER_MOUNT \
@@ -92,8 +108,7 @@ docker run --rm \
     pip3 install --extra-index-url https://test.pypi.org/simple ${PRIMUS_TURBO_WHEEL}; \
     pip install torchao ; \
     pip uninstall numpy -y && pip install numpy==1.26.4; \ 
-    python scripts/download_hf_assets.py --assets tokenizer --repo_id ${REPO_ID} --hf_token="$HF_TOKEN" ;\
-    wandb login $WANDB_API_KEY; \
+    python scripts/download_hf_assets.py --assets tokenizer --repo_id ${REPO_ID} --hf_token="$HF_TOKEN" ; \
     CONFIG_FILE=${CONFIG_FILE} bash run_multinode_train.sh ; \
  echo $(date) 
  "'

@@ -13,11 +13,16 @@ from torch import nn
 from torchtitan.models.attention import build_attention
 from torchtitan.models.moe import FeedForward, MoE
 from torchtitan.protocols.train_spec import ModelProtocol
+from torchtitan.tools.utils import is_hip
 
 from .args import DeepSeekV3ModelArgs
-
-import primus_turbo.pytorch as turbo
-
+if is_hip():
+    import primus_turbo.pytorch as turbo
+    from primus_turbo.pytorch.core.float8 import (
+        Float8QuantConfig,
+        Format,
+        ScalingGranularity,
+    )
 
 # Adapted from https://github.com/DeepSeek-ai/DeepSeek-V3/blob/main/inference/model.py#L294
 def precompute_freqs_cis(args: DeepSeekV3ModelArgs) -> torch.Tensor:
@@ -152,6 +157,7 @@ class Attention(nn.Module):
         self.qk_rope_head_dim = model_args.qk_rope_head_dim
         self.qk_head_dim = model_args.qk_nope_head_dim + model_args.qk_rope_head_dim
         self.v_head_dim = model_args.v_head_dim
+        self.use_turbo_fp8_gemm = model_args.use_turbo_fp8_gemm
 
         if self.q_lora_rank == 0:
             self.wq = nn.Linear(self.dim, self.n_heads * self.qk_head_dim, bias=False)
@@ -178,7 +184,10 @@ class Attention(nn.Module):
             self.softmax_scale = self.softmax_scale * mscale * mscale
 
         # self.sdpa = build_attention(model_args.use_flex_attn, model_args.attn_mask_type)
-        self.sdpa = turbo.modules.TurboAttention(causal=True)
+        if is_hip():
+            self.sdpa = turbo.modules.TurboAttention(causal=True)
+        else:
+            self.sdpa = build_attention(model_args.use_flex_attn, model_args.attn_mask_type)
 
     def forward(
         self,
@@ -197,12 +206,29 @@ class Attention(nn.Module):
         """
         bsz, seqlen, _ = x.size()
 
+        # FP8 configuration for turbo operations
+        if is_hip() and self.use_turbo_fp8_gemm:
+            fp8_cfg = Float8QuantConfig(
+                format=Format.E4M3,
+                granularity=ScalingGranularity.TENSORWISE,
+            )
+
         # Query projection
         if self.q_lora_rank == 0:
-            q = self.wq(x)  # (bsz, seqlen, n_heads * qk_head_dim)
+            if self.use_turbo_fp8_gemm and is_hip():
+                # Use turbo FP8 GEMM for query projection
+                q = turbo.ops.gemm_fp8(x.view(-1, x.size(-1)), self.wq.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg).view(bsz, seqlen, -1)
+            else:
+                q = self.wq(x)  # (bsz, seqlen, n_heads * qk_head_dim)
         else:
-            q = self.wq_a(x)
-            q = self.wq_b(self.q_norm(q))
+            if self.use_turbo_fp8_gemm and is_hip():
+                # Use turbo FP8 GEMM for LoRA projections
+                q = turbo.ops.gemm_fp8(x.view(-1, x.size(-1)), self.wq_a.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg).view(bsz, seqlen, -1)
+                q = self.q_norm(q)
+                q = turbo.ops.gemm_fp8(q.view(-1, q.size(-1)), self.wq_b.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg).view(bsz, seqlen, -1)
+            else:
+                q = self.wq_a(x)
+                q = self.wq_b(self.q_norm(q))
         # Use -1 instead of `n_heads` (or `n_kv_heads`) to infer the actual
         # local heads from sizes of q and kv as TP may have sharded them after
         # the above linear ops.
@@ -214,16 +240,26 @@ class Attention(nn.Module):
         q = torch.cat([q_nope, q_pe], dim=-1)  # (bsz, seqlen, n_heads, qk_head_dim)
 
         # Key-value projection
-        kv = self.wkv_a(x)  # (bsz, seqlen, kv_lora_rank + qk_rope_head_dim)
+        #kv = self.wkv_a(x)  # (bsz, seqlen, kv_lora_rank + qk_rope_head_dim) 
+        if is_hip() and self.use_turbo_fp8_gemm:
+            # Use turbo FP8 GEMM for key-value projection
+            kv = turbo.ops.gemm_fp8(x.view(-1, x.size(-1)), self.wkv_a.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg).view(bsz, seqlen, -1)
+        else:
+            kv = self.wkv_a(x)  # (bsz, seqlen, kv_lora_rank + qk_rope_head_dim)
         kv, k_pe = torch.split(kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
 
         k_pe = apply_rotary_emb(
             k_pe.unsqueeze(2), freqs_cis
         )  # (bsz, seqlen, 1, qk_rope_head_dim)
 
-        kv = self.wkv_b(
-            self.kv_norm(kv)
-        )  # (bsz, seqlen, n_heads * (qk_nope_head_dim + v_head_dim))
+        # Apply normalization first
+        kv_normed = self.kv_norm(kv)
+        
+        if is_hip() and self.use_turbo_fp8_gemm:
+            # Use turbo FP8 GEMM for wkv_b projection
+            kv = turbo.ops.gemm_fp8(kv_normed.view(-1, kv_normed.size(-1)), self.wkv_b.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg).view(bsz, seqlen, -1)
+        else:
+            kv = self.wkv_b(kv_normed)  # (bsz, seqlen, n_heads * (qk_nope_head_dim + v_head_dim))
         kv = kv.view(bsz, seqlen, -1, self.qk_nope_head_dim + self.v_head_dim)
         k_nope, v = torch.split(kv, [self.qk_nope_head_dim, self.v_head_dim], dim=-1)
         k = torch.cat(
@@ -242,7 +278,13 @@ class Attention(nn.Module):
         output = self.sdpa(q, k, v)
 
         output = output.view(bsz, seqlen, -1)  # (bsz, seqlen, n_heads * v_head_dim)
-        return self.wo(output)  # (bsz, seqlen, dim)
+        if is_hip() and self.use_turbo_fp8_gemm:
+            # Use turbo FP8 GEMM for output projection
+            result = turbo.ops.gemm_fp8(output.view(-1, output.size(-1)), self.wo.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg).view(bsz, seqlen, -1)
+        else:
+            result = self.wo(output)
+
+        return result  # (bsz, seqlen, dim)
 
     def init_weights(self, init_std: float):
         linear_list = [
