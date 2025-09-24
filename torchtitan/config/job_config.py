@@ -330,13 +330,13 @@ class Parallelism:
     This provides more explicit control over which modules belong to each chunk compared to split points.
     """
 
-    pipeline_parallel_first_stage_less_layers: int = 1
+    pipeline_parallel_first_stage_less_layers: int = 0
     """
     The number of layers to reduce in the first stage of pipeline parallelism. This is because
     the first stage has the extra overhead of the embedding layer, which is not present in the other stages.
     """
 
-    pipeline_parallel_last_stage_less_layers: int = 1
+    pipeline_parallel_last_stage_less_layers: int = 0
     """
     The number of layers to reduce in the last stage of pipeline parallelism. This is because
     the last stage has the extra overhead of the output layer, which is not present in the other stages.

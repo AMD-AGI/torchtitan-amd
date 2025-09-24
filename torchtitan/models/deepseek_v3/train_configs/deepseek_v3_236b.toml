@@ -1,14 +1,16 @@
 [job]
 dump_folder = "./outputs"
-description = "DeepSeek-V3 16B model training"
+description = "DeepSeek-V3 236B model training"
 print_args = true
 
 [profiling]
 enable_profiling = false
-save_traces_folder = "dsv3_profile_trace"
-profile_freq = 10
+save_traces_folder = "dsv3_236b_pytorch_trace"
+profile_freq = 6
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
+profile_ranks = [0]       # profile rank0 only 
+profile_with_stack = true # keep call stack in profiled trace 
 
 [metrics]
 log_freq = 1
@@ -19,8 +21,8 @@ enable_wandb = false
 
 [model]
 name = "deepseek_v3"
-flavor = "16B"
-hf_assets_path = "./assets/hf/deepseek-moe-16b-base"
+flavor = "236B"
+hf_assets_path = "./assets/hf/DeepSeek-V2"
 converters = ["float8"]
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
@@ -31,7 +33,7 @@ lr = 2.2e-4
 eps = 1e-8
 
 [lr_scheduler]
-warmup_steps = 200  # lr scheduler warm up, normally 20% of the train steps
+warmup_steps = 2  # lr scheduler warm up, normally 20% of the train steps
 decay_ratio = 0.8  # lr scheduler decay ratio, 80% of the train steps
 decay_type = "cosine"
 min_lr_factor = 0.1
@@ -49,9 +51,13 @@ data_parallel_shard_degree = -1
 fsdp_reshard_after_forward = "default" # default / never / always
 tensor_parallel_degree = 1
 enable_async_tensor_parallel = false
-pipeline_parallel_degree = 1
-pipeline_parallel_schedule = "Interleaved1F1B"
-expert_parallel_degree = 8
+pipeline_parallel_degree = 4
+pipeline_parallel_schedule = "Interleaved1F1B" # "1F1B" 
+pipeline_parallel_layers_per_stage = 6 # disable activation_checkpoint for vpp
+# pipeline_parallel_microbatch_size = 1
+pipeline_parallel_first_stage_less_layers = 0
+pipeline_parallel_last_stage_less_layers = 0
+expert_parallel_degree = 8 
 expert_tensor_parallel_degree = 1
 
 [checkpoint]
@@ -63,7 +69,7 @@ export_dtype = "float32"
 async_mode = "disabled"  # ["disabled", "async", "async_with_pinned_mem]"
 
 [activation_checkpoint]
-mode = "selective"  # ["none", "selective", "full"]
+mode = "none"  # ["none", "selective", "full"]
 selective_ac_option = 'op'  # 'int' = ac every positive int layer or 'op', ac based on ops policy
 
 [compile]

@@ -3,6 +3,7 @@
 [job]
 dump_folder = "./outputs"
 description = "Llama 4 Scout 17Bx16E training"
+print_args = true
 
 [profiling]
 enable_profiling = false

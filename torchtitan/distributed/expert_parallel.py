@@ -19,6 +19,7 @@ from torch.distributed.tensor import (
     Replicate,
     Shard,
 )
+from torchtitan.tools.utils import is_hip
 from torch.distributed.tensor.parallel import ParallelStyle
 from torch.distributed.tensor.placement_types import Placement
 
@@ -335,17 +336,30 @@ def expert_parallel(func: Callable) -> Callable:
         num_ep_ranks = num_tokens_per_expert.shape[0] // experts_per_ep_rank
 
         with torch.no_grad():
-            (
-                permuted_indices,
-                num_tokens_per_expert,
-                _,  # offsets,
-            ) = generate_permute_indices(
-                num_tokens_per_expert,
-                experts_per_ep_rank,
-                num_ep_ranks,
-                x.shape[0] + experts_per_ep_rank * TOKEN_GROUP_ALIGN_SIZE_M,
-                TOKEN_GROUP_ALIGN_SIZE_M,
-            )
+            if is_hip():
+                (
+                    permuted_indices,
+                    num_tokens_per_expert,
+                    _,  # offsets,
+                ) = generate_permute_indices(
+                    num_tokens_per_expert,
+                    experts_per_ep_rank,
+                    num_ep_ranks,
+                    x.shape[0], # no need to align on hip
+                    1, 
+                )
+            else:
+                (
+                    permuted_indices,
+                    num_tokens_per_expert,
+                    _,  # offsets,
+                ) = generate_permute_indices(
+                    num_tokens_per_expert,
+                    experts_per_ep_rank,
+                    num_ep_ranks,
+                    x.shape[0] + experts_per_ep_rank * TOKEN_GROUP_ALIGN_SIZE_M,
+                    TOKEN_GROUP_ALIGN_SIZE_M,
+                )
 
         x = torch.vstack((x, x.new_zeros((x.shape[-1]))))
         input_shape = x.shape

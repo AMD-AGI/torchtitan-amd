@@ -1,14 +1,16 @@
 [job]
 dump_folder = "./outputs"
 description = "DeepSeek-V3 671B model training"
-print_args = false
+print_args = true
 
 [profiling]
 enable_profiling = false
-save_traces_folder = "profile_trace"
-profile_freq = 10
+save_traces_folder = "dsv3_671b_pytorch_trace"
+profile_freq = 6
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
+profile_ranks = [0]       # profile rank0 only 
+profile_with_stack = true # keep call stack in profiled trace 
 
 [metrics]
 log_freq = 10
@@ -21,7 +23,9 @@ enable_wandb = false
 name = "deepseek_v3"
 flavor = "671B"
 hf_assets_path = "./assets/hf/DeepSeek-V3.1-Base"
-# converters = ["float8"]
+converters = ["float8"]
+use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
+force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
 
 [optimizer]
 name = "AdamW"
@@ -29,7 +33,7 @@ lr = 2.2e-4
 eps = 1e-8
 
 [lr_scheduler]
-warmup_steps = 2_000  # lr scheduler warm up, normally 20% of the train steps
+warmup_steps = 2  # lr scheduler warm up, normally 20% of the train steps
 decay_ratio = 0.8  # lr scheduler decay ratio, 80% of the train steps
 decay_type = "cosine"
 min_lr_factor = 0.1
@@ -38,9 +42,9 @@ min_lr_factor = 0.1
 local_batch_size = 4
 seq_len = 4096
 max_norm = 1.0  # grad norm clipping
-steps = 10_000
-compile = false
-dataset = "c4"  # supported datasets: c4_test (2K), c4 (177M)
+steps = 10
+# compile = false
+dataset = "c4_test"  # supported datasets: c4_test (2K), c4 (177M)
 
 [parallelism]
 data_parallel_replicate_degree = 1
@@ -48,9 +52,13 @@ data_parallel_shard_degree = -1
 fsdp_reshard_after_forward = "default" # default / never / always
 tensor_parallel_degree = 1
 enable_async_tensor_parallel = false
-pipeline_parallel_degree = 1
+pipeline_parallel_degree = 16
+pipeline_parallel_first_stage_less_layers = 3 # 64 - 3 = 61 layer in deepseek_v3_671b
+pipeline_parallel_last_stage_less_layers = 0
 pipeline_parallel_schedule = "Interleaved1F1B"
-expert_parallel_degree = 1
+pipeline_parallel_layers_per_stage = 2 # vpp config; None is no vpp; layer_per_stage = total_layer // vpp 
+# pipeline_parallel_microbatch_size = 1
+expert_parallel_degree = 16
 expert_tensor_parallel_degree = 1
 
 [checkpoint]
@@ -62,12 +70,12 @@ export_dtype = "float32"
 async_mode = "disabled"  # ["disabled", "async", "async_with_pinned_mem]"
 
 [activation_checkpoint]
-mode = "selective"  # ["none", "selective", "full"]
+mode = "full"  # ["none", "selective", "full"]
 selective_ac_option = 'op'  # 'int' = ac every positive int layer or 'op', ac based on ops policy
 
 [compile]
 enable=true
-components = ["loss"] # ["model", "loss"]
+components = ["loss"] # ["model", "loss"], currently we doesn't support compile model
 
 [float8]
 enable_fsdp_float8_all_gather = false
