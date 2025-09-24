@@ -322,19 +322,18 @@ class TokenChoiceTopKRouter(nn.Module):
                     Number of tokens assigned to each expert with shape ``(num_experts,)``.
         """
         # scores shape (bs*slen, num_experts)
-        scores = self.gate(x)
+        scores = self.gate(x)  # (bs*slen, num_experts)
         
-        # Handle forced uniform routing
         if self.force_uniform_routing:
             batch_size = x.shape[0]
             # Create round-robin expert assignments for uniform distribution [0, 1, 2, ..., num_experts-1]
-            expert_indices = (self.routing_counter + torch.arange(batch_size, device=x.device)) % self.num_experts
+            expert_indices = (self.routing_counter + torch.arange(batch_size * self.top_k, device=x.device)) % self.num_experts
             self.routing_counter += batch_size
-            
+           
             # Create one-hot scores for selected experts
-            selected_experts_indices = expert_indices.unsqueeze(1)  # shape (bs, 1)
+            selected_experts_indices = expert_indices.view(batch_size, self.top_k)
             top_scores = torch.ones(batch_size, self.top_k, device=x.device, dtype=scores.dtype)
-            
+           
             # Count tokens per expert
             num_tokens_per_expert = torch.histc(
                 selected_experts_indices.view(-1).float(),
@@ -342,7 +341,7 @@ class TokenChoiceTopKRouter(nn.Module):
                 min=0,
                 max=self.num_experts - 1,
             )
-            
+           
             return top_scores, selected_experts_indices, num_tokens_per_expert
 
         # By default, sigmoid or softmax is performed in float32 to avoid loss explosion
