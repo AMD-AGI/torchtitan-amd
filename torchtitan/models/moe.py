@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from torchtitan.distributed.expert_parallel import expert_parallel
+from torchtitan.distributed.deepep.primus_turbo import PrimusTurboFlexTokenDispatcher
 
 from torchtitan.tools.utils import is_hip
 if is_hip():
@@ -61,6 +62,9 @@ class MoEArgs:
     
     # Turbo FP8 GEMM
     use_turbo_fp8_gemm: bool = False
+
+    # DeepEP
+    use_deepep: bool = False
 
 
 # can be used as dense FFN layer or shared experts in MoE layers
@@ -184,6 +188,7 @@ def _run_experts_grouped_mm_rocm(
     w3: torch.Tensor,
     x: torch.Tensor,
     num_tokens_per_expert: torch.Tensor,
+    use_deepep: bool = False,
 ) -> torch.Tensor:
     assert x.dim() == 2
     num_tokens_per_expert = num_tokens_per_expert.to(torch.int64).to(x.device)
@@ -234,6 +239,8 @@ class GroupedExperts(nn.Module):
         hidden_dim: int,
         num_experts: int,
         use_grouped_mm: bool,
+        deepep_dispatcher: PrimusTurboFlexTokenDispatcher = None,
+        score_before_experts: bool = True,
     ):
         super().__init__()
         self.num_experts = num_experts
@@ -241,25 +248,39 @@ class GroupedExperts(nn.Module):
         self.w2 = nn.Parameter(torch.empty(num_experts, dim, hidden_dim))
         self.w3 = nn.Parameter(torch.empty(num_experts, hidden_dim, dim))
         self.use_grouped_mm = use_grouped_mm
+        self.deepep_dispatcher = deepep_dispatcher
+        self.score_before_experts = score_before_experts
 
     def forward(
         self,
         x: torch.Tensor,
         num_tokens_per_expert: torch.Tensor,
+        routed_prob: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        if routed_prob is not None and self.score_before_experts:
+            x = (
+                x.to(torch.float32)
+                * routed_prob.reshape(-1, 1)
+            ).to(x.dtype)
         if self.use_grouped_mm:
             if is_hip():
-                return _run_experts_grouped_mm_rocm(
-                    self.w1, self.w2, self.w3, x, num_tokens_per_expert
+                out = _run_experts_grouped_mm_rocm(
+                    self.w1, self.w2, self.w3, x, num_tokens_per_expert, use_deepep=self.deepep_dispatcher is not None
                 )
             else:
-                return _run_experts_grouped_mm(
+                out = _run_experts_grouped_mm(
                     self.w1, self.w2, self.w3, x, num_tokens_per_expert
                 )
         else:
-            return _run_experts_for_loop(
+            out = _run_experts_for_loop(
                 self.w1, self.w2, self.w3, x, num_tokens_per_expert
             )
+        if routed_prob is not None and not self.score_before_experts:
+            out = (
+                out.to(torch.float32)
+                * routed_prob.reshape(-1, 1)
+            ).to(out.dtype)
+        return out
 
     def init_weights(self, init_std: float):
         nn.init.trunc_normal_(self.w1, mean=0.0, std=0.02)
@@ -454,11 +475,20 @@ class MoE(nn.Module):
             set_moe_fp8(moe_args.use_turbo_fp8_gemm)
 
         num_experts = moe_args.num_experts
+        self.use_deepep = moe_args.use_deepep
+        deepep_dispatcher = None
+        if self.use_deepep:
+            deepep_dispatcher = PrimusTurboFlexTokenDispatcher(
+                moe_router_topk=moe_args.top_k,
+                num_moe_experts=num_experts,
+            )
         self.experts = GroupedExperts(
             dim=dim,
             hidden_dim=hidden_dim,
             num_experts=num_experts,
             use_grouped_mm=moe_args.use_grouped_mm,
+            deepep_dispatcher=deepep_dispatcher,
+            score_before_experts=moe_args.score_before_experts,
         )
         self.router = TokenChoiceTopKRouter(
             dim=dim,
@@ -529,52 +559,67 @@ class MoE(nn.Module):
         with torch.no_grad():
             self.tokens_per_expert.add_(num_tokens_per_expert)
 
-        # top_scores and token_indices_experts_sorted shape (bs*slen*top_k,)
-        # num_tokens_per_expert shape (num_experts,)
-        # NOTE: the reason we need to compute num_tokens_per_expert again is:
-        #       1st computation in router is to update self.tokens_per_expert
-        #       which would be the same across all TP ranks.
-        #       2nd computation in reorderer is for the actual routing and experts computation
-        #       which would be sharded over TP ranks if expert_tensor_parallel_degree==1.
-        #       If tensor_paralllel_degree == expert_tensor_parallel_degree, they agree.
-        (
-            top_scores_experts_sorted,
-            token_indices_experts_sorted,
-            num_tokens_per_expert,
-        ) = self.reorderer(top_scores, selected_experts_indices)
-
-        # shape (bs*slen*top_k, dim)
-        token_indices_experts_sorted = token_indices_experts_sorted.reshape(
-            -1, 1
-        ).expand(-1, dim)
-
-        # shape (bs*slen*top_k, dim)
-        routed_input = torch.gather(x, dim=0, index=token_indices_experts_sorted)
-
-        if self.score_before_experts:
-            routed_input = (
-                routed_input.to(torch.float32)
-                * top_scores_experts_sorted.reshape(-1, 1)
-            ).to(x.dtype)
-
-        # shape (bs*slen*top_k, dim)
-        routed_output = self.experts(routed_input, num_tokens_per_expert)
-
-        if not self.score_before_experts:
-            routed_output = (
-                routed_output.to(torch.float32)
-                * top_scores_experts_sorted.reshape(-1, 1)
-            ).to(x.dtype)
-
-        # shared expert
-        if self.shared_experts is not None:
-            out = self.shared_experts(x)
+        if self.use_deepep:
+            top_scores = top_scores.float()
+            self.experts.deepep_dispatcher.dispatch_preprocess(top_scores, selected_experts_indices)
+            # shape (bs*slen*top_k, dim)
+            routed_output = self.experts(x, num_tokens_per_expert)
+            # shared expert
+            if self.shared_experts is not None:
+                out = self.shared_experts(x)
+            else:
+                out = torch.zeros_like(x)
+            out = routed_output + out
         else:
-            out = torch.zeros_like(x)
+            # Non-DeepEP case
 
-        out = out.scatter_add(
-            dim=0, index=token_indices_experts_sorted, src=routed_output
-        )
+            # top_scores and token_indices_experts_sorted shape (bs*slen*top_k,)
+            # num_tokens_per_expert shape (num_experts,)
+            # NOTE: the reason we need to compute num_tokens_per_expert again is:
+            #       1st computation in router is to update self.tokens_per_expert
+            #       which would be the same across all TP ranks.
+            #       2nd computation in reorderer is for the actual routing and experts computation
+            #       which would be sharded over TP ranks if expert_tensor_parallel_degree==1.
+            #       If tensor_paralllel_degree == expert_tensor_parallel_degree, they agree.
+            (
+                top_scores_experts_sorted,
+                token_indices_experts_sorted,
+                num_tokens_per_expert,
+            ) = self.reorderer(top_scores, selected_experts_indices)
+
+            # shape (bs*slen*top_k, dim)
+            token_indices_experts_sorted = token_indices_experts_sorted.reshape(
+                -1, 1
+            ).expand(-1, dim)
+
+            # shape (bs*slen*top_k, dim)
+            routed_input = torch.gather(x, dim=0, index=token_indices_experts_sorted)
+
+            if self.score_before_experts:
+                routed_input = (
+                    routed_input.to(torch.float32)
+                    * top_scores_experts_sorted.reshape(-1, 1)
+                ).to(x.dtype)
+
+            # shape (bs*slen*top_k, dim)
+            routed_output = self.experts(routed_input, num_tokens_per_expert)
+
+            if not self.score_before_experts:
+                routed_output = (
+                    routed_output.to(torch.float32)
+                    * top_scores_experts_sorted.reshape(-1, 1)
+                ).to(x.dtype)
+
+            # shared expert
+            if self.shared_experts is not None:
+                out = self.shared_experts(x)
+            else:
+                out = torch.zeros_like(x)
+
+            out = out.scatter_add(
+                dim=0, index=token_indices_experts_sorted, src=routed_output
+            )
+
         out = out.reshape(bs, slen, dim)
         return out
 
