@@ -11,6 +11,7 @@ export NCCL_PROTO=${NCCL_PROTO:-"Simple"}
 export RCCL_MSCCL_ENABLE=${RCCL_MSCCL_ENABLE:-"0"}
 export TOKENIZERS_PARALLELISM=${TOKENIZERS_PARALLELISM:-"false"}
 export HSA_NO_SCRATCH_RECLAIM=${HSA_NO_SCRATCH_RECLAIM:-"1"}
+
 # use envs as local overrides for convenience
 # e.g.
 # LOG_RANK=0,1 NGPU=4 ./run_llama_train.sh

@@ -142,6 +142,8 @@ class PrimusTurboDeepepManager:
             if self.token_probs.dtype in [torch.bfloat16, torch.float16]:
                 print("DeepEP only supports float32 probs, please set --moe-router-dtype=fp32")
             self.token_probs = self.token_probs.float()  # downcast or upcast
+        print("ddddd", hidden_states.shape, hidden_states.dtype, self.token_indices.shape, self.token_probs.shape)
+        print("eeeee", self.token_indices)
         hidden_states, dispatched_indices, dispatched_probs, num_tokens_per_expert, handle = (
             fused_dispatch(
                 hidden_states,
@@ -290,6 +292,7 @@ class PrimusTurboFlexTokenDispatcher:
         async_finish: bool = True,
         allocate_on_comm_stream: bool = True,
     ):
+        print("grouppppp", group.size(), group.rank())
         return (
             self._comm_manager.dispatch(hidden_states, group, async_finish, allocate_on_comm_stream),
             self._comm_manager.dispatched_probs,

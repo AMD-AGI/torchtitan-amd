@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=titan
-#SBATCH --output=logs/slurm/llama4_17bx16e_pretraining.%j.out
+#SBATCH --output=logs/slurm/deepseek_pretraining.%j.out
 #SBATCH --nodes=2                            # Number of nodes, Adjust as necessary
 #SBATCH --ntasks-per-node=1                  # One task per GPU -> total 8 tasks per node
 #SBATCH --cpus-per-task=96                   # assign all CPUs to the job
 #SBATCH --gres=gpu:8                         # Request 8 GPUs per node
 #SBATCH --time=01:00:00                      # Adjust as necessary
+#SBATCH  --reservation=gpu-40_gpu-41_gpu-43_gpu-44_gpu-46_gpu-47_gpu-50_gpu-55_reservation
 ##SBATCH --nodelist=chi[2599-2600,2602-2603,2630-2631,2643-2644]  # modify based on your reservation settings
 ##SBATCH --reservation=vultr-mi325x-torch # modify based on your reservation settings
 
@@ -16,7 +17,7 @@ export HF_TOKEN=${HF_TOKEN:="your_hf_token"}    # please set your HF token here
 export HOST_MOUNT=${HOST_MOUNT:="/mnt/models/your_path"}     # change this path to host dir intend to be attached to the docker
 export CONTAINER_MOUNT=${CONTAINER_MOUNT:="/workspace"}      # change this path to development workspace path inside the docker
 
-MODEL_NAME=llama4-scout # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
+MODEL_NAME=deepseek-16b # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
 # Setup the config file and repo id for the model
 if [ "$MODEL_NAME" == "llama4-scout" ]; then
   export CONFIG_FILE=${CONFIG_FILE:="torchtitan/experiments/llama4/train_configs/llama4_17bx16e.toml"}     
@@ -43,7 +44,8 @@ fi
                            
 # Setup the turbo wheel file and torch version
 export TORCH_VERSION=${TORCH_VERSION:="2.9.0.dev20250825+rocm6.3"}                                   # torch version to install in the container
-export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+2e40784-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
+export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+5fb2c17-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
+# export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+2e40784-cp310-cp310-linux_x86_64.whl"}
 export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"2"}
 
 echo "get first node"
@@ -64,13 +66,13 @@ echo "MASTER_ADDR=$SLURM_MASTER_ADDR"
 echo "MASTER_PORT=$SLURM_MASTER_PORT"
 
 # Define the Docker image
-export NCCL_IB_HCA=${NCCL_IB_HCA:="bnxt_re0,bnxt_re1,bnxt_re2,bnxt_re3,bnxt_re4,bnxt_re5,bnxt_re7,bnxt_re8"} # modify based on the GPU NiC settings
-export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:="enp49s0f0np0"}
+export NCCL_IB_HCA=${NCCL_IB_HCA:="mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_9:1"} # modify based on the GPU NiC settings
+export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:="ens6np0"}
 echo $NCCL_IB_HCA
 
 export DOCKER_IMAGE=${DOCKER_IMAGE:-"docker.io/rocm/megatron-lm:v25.5_py310"}
 # Pull docker image
-srun docker pull $DOCKER_IMAGE
+# srun docker pull $DOCKER_IMAGE
 
 export TIME_STAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 echo "Current time: $TIME_STAMP"
@@ -107,8 +109,8 @@ export CACHE_TAG="${OS_VER}_py${PY_VER}_rocm${ROCM_VER}_amdgpu${AMDGPU_VER}_kern
 
 
 # Run the Docker container with the script
-srun bash -c "docker ps -aq | xargs -r docker rm -f ; \
-docker run --rm \
+srun bash -c "podman ps -aq | xargs -r podman rm -f ; \
+podman run --rm \
  --env SLURM_MASTER_ADDR=\$SLURM_MASTER_ADDR \
  --env SLURM_MASTER_PORT=\$SLURM_MASTER_PORT \
  --env SLURM_PROCID=\$SLURM_PROCID \
@@ -138,6 +140,7 @@ docker run --rm \
     pip3 install torch==\$TORCH_VERSION torchvision --index-url https://download.pytorch.org/whl/nightly/rocm6.3 --force-reinstall ; \
     pip3 install -r requirements.txt ; \
     pip3 install -e . ; \
+    pip3 install -qq hip-python --extra-index-url https://test.pypi.org/simple ; \
     pip3 install --extra-index-url https://test.pypi.org/simple \$PRIMUS_TURBO_WHEEL ; \
     pip install torchao ; \
     pip uninstall numpy -y && pip install numpy==1.26.4; \ 
