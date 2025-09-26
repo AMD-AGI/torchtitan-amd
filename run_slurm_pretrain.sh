@@ -43,7 +43,7 @@ fi
                            
 # Setup the turbo wheel file and torch version
 export TORCH_VERSION=${TORCH_VERSION:="2.9.0.dev20250825+rocm6.3"}                                   # torch version to install in the container
-export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+2e40784-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
+export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+5fb2c17-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
 export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"2"}
 
 echo "get first node"
@@ -138,6 +138,7 @@ docker run --rm \
     pip3 install torch==\$TORCH_VERSION torchvision --index-url https://download.pytorch.org/whl/nightly/rocm6.3 --force-reinstall ; \
     pip3 install -r requirements.txt ; \
     pip3 install -e . ; \
+    pip3 install -qq hip-python --extra-index-url https://test.pypi.org/simple ; \
     pip3 install --extra-index-url https://test.pypi.org/simple \$PRIMUS_TURBO_WHEEL ; \
     pip install torchao ; \
     pip uninstall numpy -y && pip install numpy==1.26.4; \ 

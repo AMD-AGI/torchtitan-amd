@@ -323,6 +323,7 @@ def expert_parallel(func: Callable) -> Callable:
         w3: torch.Tensor,
         x: torch.Tensor,
         num_tokens_per_expert: torch.Tensor,
+        use_deepep: bool = False,
     ) -> torch.Tensor:
         global TOKEN_GROUP_ALIGN_SIZE_M
         if isinstance(w1, DTensor):
@@ -330,6 +331,11 @@ def expert_parallel(func: Callable) -> Callable:
             w2 = w2.to_local()
             w3 = w3.to_local()
 
+        if use_deepep:
+            out = func(w1, w2, w3, x, num_tokens_per_expert, use_deepep)
+            return out
+        
+        # Non-DeepEP case
         from torchtitan.experiments.kernels.moe.indices import generate_permute_indices
 
         experts_per_ep_rank = w1.shape[0]
@@ -429,4 +435,41 @@ class ReordererSequenceParallel(ParallelStyle):
             partition_fn=None,
             input_fn=self._prepare_inputput_fn,
             output_fn=self._prepare_output_fn,
+        )
+
+
+class ExpertParallelDeepEP(ExpertParallel):
+    def __init__(self):
+        super().__init__()
+
+    # performing all-to-all dispatch on the input
+    def _token_dispatch(self, mod, inputs, device_mesh):
+        # annotate module input placements/sharding with input_layouts
+        routed_input, num_tokens_per_expert = inputs
+
+        routed_input, routed_prob = mod.deepep_dispatcher.token_dispatch(routed_input, group=device_mesh.get_group())
+        routed_input, num_tokens_per_expert, routed_prob = mod.deepep_dispatcher.dispatch_postprocess(routed_input, None)
+
+        return routed_input, num_tokens_per_expert, routed_prob
+
+    @staticmethod
+    def _partition_fn(name, mod, device_mesh):
+        # shard on the expert dimension
+        for name, param in mod.named_parameters(recurse=False):
+            dist_param = nn.Parameter(distribute_tensor(param, device_mesh, [Shard(0)]))
+            mod.register_parameter(name, dist_param)
+
+    # performing all-to-all combine on the output
+    def _token_combine(self, mod, routed_output, device_mesh):
+        routed_output = mod.deepep_dispatcher.combine_preprocess(routed_output)
+        routed_output = mod.deepep_dispatcher.token_combine(routed_output, group=device_mesh.get_group())
+        return routed_output
+
+    def _apply(self, module: nn.Module, device_mesh: DeviceMesh) -> nn.Module:
+        return distribute_module(
+            module,
+            device_mesh,
+            partition_fn=ExpertParallel._partition_fn,
+            input_fn=self._token_dispatch,
+            output_fn=self._token_combine,
         )

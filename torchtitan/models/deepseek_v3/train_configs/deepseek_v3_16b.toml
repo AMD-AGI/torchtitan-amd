@@ -4,9 +4,9 @@ description = "DeepSeek-V3 16B model training"
 print_args = true
 
 [profiling]
-enable_profiling = false
+enable_profiling = true
 save_traces_folder = "dsv3_profile_trace"
-profile_freq = 10
+profile_freq = 6
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
 
@@ -37,7 +37,7 @@ decay_type = "cosine"
 min_lr_factor = 0.1
 
 [training]
-local_batch_size = 8
+local_batch_size = 2
 seq_len = 4096
 max_norm = 1.0  # grad norm clipping
 steps = 10

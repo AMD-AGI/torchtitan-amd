@@ -93,6 +93,7 @@ deepseekv3_configs = {
             score_func="softmax",
             route_norm=True,
             score_before_experts=False,
+            use_deepep=False,
         ),
         q_lora_rank=0,
         kv_lora_rank=512,
