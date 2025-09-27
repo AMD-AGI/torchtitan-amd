@@ -50,7 +50,7 @@ def get_buffer(group: torch.distributed.ProcessGroup, hidden_bytes: int):
         or _buffer.num_nvl_bytes < num_nvl_bytes
         or _buffer.num_rdma_bytes < num_rdma_bytes
     ):
-        _buffer = Buffer(group, num_nvl_bytes, num_rdma_bytes)
+        _buffer = Buffer(group, num_nvl_bytes, num_rdma_bytes, use_default_stream_as_comm_stream=False)
     return _buffer
 
 
