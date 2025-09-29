@@ -1,15 +1,15 @@
 [job]
-dump_folder = "./outputs"
+dump_folder = "./outputs/deepseek-671b-outputs"
 description = "DeepSeek-V3 671B model training"
 print_args = true
 
 [profiling]
-enable_profiling = false
-save_traces_folder = "dsv3_671b_pytorch_trace"
+enable_profiling = true
+save_traces_folder = "24layers-8nodes-ep8-pp4-vpp3-lbs16-trace"
 profile_freq = 6
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
-profile_ranks = [0]       # profile rank0 only 
+profile_ranks = [0, 31]     
 profile_with_stack = true # keep call stack in profiled trace 
 
 [metrics]
@@ -39,7 +39,7 @@ decay_type = "cosine"
 min_lr_factor = 0.1
 
 [training]
-local_batch_size = 4
+local_batch_size = 16
 seq_len = 4096
 max_norm = 1.0  # grad norm clipping
 steps = 10
@@ -52,13 +52,13 @@ data_parallel_shard_degree = -1
 fsdp_reshard_after_forward = "default" # default / never / always
 tensor_parallel_degree = 1
 enable_async_tensor_parallel = false
-pipeline_parallel_degree = 16
-pipeline_parallel_first_stage_less_layers = 3 # 64 - 3 = 61 layer in deepseek_v3_671b
+pipeline_parallel_degree = 4
+pipeline_parallel_first_stage_less_layers = 0 # 64 - 3 = 61 layer in deepseek_v3_671b
 pipeline_parallel_last_stage_less_layers = 0
-pipeline_parallel_schedule = "Interleaved1F1B"
+pipeline_parallel_schedule = "Interleaved1F1B" # "1F1B" or "Interleaved1F1B"
 pipeline_parallel_layers_per_stage = 2 # vpp config; None is no vpp; layer_per_stage = total_layer // vpp 
 # pipeline_parallel_microbatch_size = 1
-expert_parallel_degree = 16
+expert_parallel_degree = 8
 expert_tensor_parallel_degree = 1
 
 [checkpoint]

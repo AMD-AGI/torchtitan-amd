@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=titan
-#SBATCH --output=logs/slurm/llama4_17bx16e_pretraining.%j.out
-#SBATCH --nodes=2                            # Number of nodes, Adjust as necessary
+#SBATCH --output=logs/deepseek-671b-slurm/24layers-8nodes-ep8-pp4-vpp3-lbs16.%j.out
+#SBATCH --nodes=8                            # Number of nodes, Adjust as necessary
 #SBATCH --ntasks-per-node=1                  # One task per GPU -> total 8 tasks per node
 #SBATCH --cpus-per-task=96                   # assign all CPUs to the job
 #SBATCH --gres=gpu:8                         # Request 8 GPUs per node
 #SBATCH --time=01:00:00                      # Adjust as necessary
-##SBATCH --nodelist=chi[2599-2600,2602-2603,2630-2631,2643-2644]  # modify based on your reservation settings
+#SBATCH --nodelist=chi[2599,2600,2602,2603,2613,2617,2630,2631]  # modify based on your reservation settings
 ##SBATCH --reservation=vultr-mi325x-torch # modify based on your reservation settings
 
 # Setup your keys for HF and WADNB
