@@ -239,7 +239,7 @@ class PrimusTurboFlexTokenDispatcher:
     """
 
     turbo_deepep_backend: str = "deepep"
-    turbo_deepep_num_cus: int = 64
+    turbo_deepep_num_cus: int = 32
     turbo_sync_free_moe: bool = False
     turbo_deepep_num_worst_tokens: int = 0
     turbo_deepep_dispatch_tuned_config: Optional[tuple] = None
