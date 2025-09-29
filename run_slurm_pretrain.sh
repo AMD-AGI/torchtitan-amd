@@ -16,7 +16,7 @@ export HF_TOKEN=${HF_TOKEN:="your_hf_token"}    # please set your HF token here
 export HOST_MOUNT=${HOST_MOUNT:="/mnt/models/your_path"}     # change this path to host dir intend to be attached to the docker
 export CONTAINER_MOUNT=${CONTAINER_MOUNT:="/workspace"}      # change this path to development workspace path inside the docker
 
-MODEL_NAME=llama4-scout # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
+MODEL_NAME=deepseek-671b # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
 # Setup the config file and repo id for the model
 if [ "$MODEL_NAME" == "llama4-scout" ]; then
   export CONFIG_FILE=${CONFIG_FILE:="torchtitan/experiments/llama4/train_configs/llama4_17bx16e.toml"}     
