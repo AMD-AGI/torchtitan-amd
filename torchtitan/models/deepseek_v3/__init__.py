@@ -147,6 +147,7 @@ deepseekv3_configs = {
             route_norm=True,
             route_scale=2.5,
             score_before_experts=False,
+            use_deepep=False,
         ),
         n_expert_groups=8,
         n_limited_groups=4,

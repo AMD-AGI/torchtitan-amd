@@ -70,7 +70,7 @@ class PrimusTurboDeepepManager:
         num_experts: Optional[int] = None,
         router_dtype: Optional[str] = None,
         backend_type: str = "deepep",
-        deep_num_cus: int = 64,
+        deep_num_cus: int = 32,
         use_cuda_num_token_per_expert: bool = False,
         sync_free_moe: bool = False,
         num_worst_tokens: int = 0,
