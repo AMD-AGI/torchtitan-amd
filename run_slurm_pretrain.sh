@@ -143,6 +143,8 @@ docker run --rm \
     pip install torchao ; \
     pip uninstall numpy -y && pip install numpy==1.26.4; \ 
     python scripts/download_hf_assets.py --assets tokenizer --repo_id \$REPO_ID --hf_token=\$HF_TOKEN ; \
+    export NCCL_PXN_DISABLE=0 ; \
+    export NCCL_P2P_NET_CHUNKSIZE=262144 ; \
     CONFIG_FILE=\$CONFIG_FILE bash run_multinode_train.sh ; \
  echo \$(date) 
  '"

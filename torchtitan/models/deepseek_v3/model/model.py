@@ -24,6 +24,12 @@ if is_hip():
         ScalingGranularity,
     )
 
+# Import the Attention class from llama4 as new option for DeepSeekV3
+from torchtitan.experiments.llama4.model.model import Attention as Llama4Attention
+from torchtitan.experiments.llama4.model.model import (
+    precompute_freqs_cis as llama4_precompute_freqs_cis,
+)
+
 # Adapted from https://github.com/DeepSeek-ai/DeepSeek-V3/blob/main/inference/model.py#L294
 def precompute_freqs_cis(args: DeepSeekV3ModelArgs) -> torch.Tensor:
     """
@@ -140,6 +146,55 @@ def apply_rotary_emb(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
     freqs_cis = freqs_cis.view(1, x.size(1), 1, x.size(-1))
     y = torch.view_as_real(x * freqs_cis).flatten(3)
     return y.to(dtype)
+
+
+class MultiHeadAttention(Llama4Attention):
+    """
+    Multi-head attention module for DeepSeekV3, inheriting from llama4's Attention class.
+
+    This class adapts the llama4 Attention class to work with DeepSeekV3ModelArgs
+    instead of TransformerModelArgs.
+    """
+
+    def __init__(
+        self,
+        model_args: DeepSeekV3ModelArgs,
+        use_rope: bool = True,
+        fixed_block_size: int | None = None,
+    ):
+        # Convert DeepSeekV3ModelArgs to a format compatible with llama4's Attention
+        # Create a mock TransformerModelArgs-like object
+        class MockTransformerModelArgs:
+            def __init__(self, deepseek_args: DeepSeekV3ModelArgs):
+                self.n_heads = deepseek_args.q_head
+                self.n_kv_heads = deepseek_args.n_kv_heads
+                self.dim = deepseek_args.dim
+                self.head_dim = deepseek_args.head_dim
+                self.use_turbo_fp8_gemm = deepseek_args.use_turbo_fp8_gemm
+                self.use_flex_attn = deepseek_args.use_flex_attn
+                self.attn_mask_type = deepseek_args.attn_mask_type
+        
+        # Initialize the parent class with the mock args
+        super().__init__(
+            MockTransformerModelArgs(model_args),
+            use_rope=use_rope,
+            fixed_block_size=fixed_block_size
+        )
+        self.rope_theta = model_args.rope_theta
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        freqs_cis: torch.Tensor,
+    ):
+        # Always use llama4-style freqs_cis for this attention, regardless of input
+        seqlen = x.shape[1]
+        freqs_llama4 = llama4_precompute_freqs_cis(
+            self.head_dim, seqlen, self.rope_theta
+        )
+        # Ensure freqs are on the same device as activations
+        freqs_llama4 = freqs_llama4.to(x.device, dtype=x.dtype)
+        return super().forward(x, freqs_llama4)
 
 
 class Attention(nn.Module):
@@ -313,7 +368,10 @@ class TransformerBlock(nn.Module):
     def __init__(self, layer_id: int, model_args: DeepSeekV3ModelArgs):
 
         super().__init__()
-        self.attention = Attention(model_args)
+        if model_args.use_classical_attn:
+            self.attention = MultiHeadAttention(model_args)
+        else:
+            self.attention = Attention(model_args)
         self.attention_norm = nn.RMSNorm(model_args.dim, eps=model_args.norm_eps)
         self.ffn_norm = nn.RMSNorm(model_args.dim, eps=model_args.norm_eps)
 

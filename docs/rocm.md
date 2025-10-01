@@ -76,3 +76,11 @@ export HF_TOKEN="your_hf_token"
 export WANDB_API_KEY="your_wandb_token"
 sbatch run_slurm_pretrain.sh
 ```
+
+## Enable PXN on rocm GPU to speed up the all2all communication cross nodes
+To enable PXN, please set the following environment variables:
+
+```bash
+export NCCL_PXN_DISABLE=0
+export NCCL_P2P_NET_CHUNKSIZE=262144
+```

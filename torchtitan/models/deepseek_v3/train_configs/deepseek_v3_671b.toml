@@ -26,6 +26,7 @@ hf_assets_path = "./assets/hf/DeepSeek-V3.1-Base"
 converters = ["float8"]
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
+use_classical_attn = true # use GQA/MHA instead of MLA
 
 [optimizer]
 name = "AdamW"

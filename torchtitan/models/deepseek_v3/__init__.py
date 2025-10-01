@@ -103,6 +103,9 @@ deepseekv3_configs = {
         mscale=0.70,
         use_flex_attn=True,
         attn_mask_type="block_causal",
+        use_classical_attn=False,
+        n_kv_heads=16,
+        head_dim=2048 // 128,
     ),
     "236B": DeepSeekV3ModelArgs(
         vocab_size=102400,
@@ -130,6 +133,10 @@ deepseekv3_configs = {
         v_head_dim=128,
         use_flex_attn=True,
         attn_mask_type="block_causal",
+        use_classical_attn=False,
+        q_head=40,
+        n_kv_heads=8,
+        head_dim=128,
     ),
     "671B": DeepSeekV3ModelArgs(
         vocab_size=129280,
@@ -158,6 +165,10 @@ deepseekv3_configs = {
         v_head_dim=128,
         use_flex_attn=True,
         attn_mask_type="block_causal",
+        use_classical_attn=False,
+        q_head=40,
+        n_kv_heads=128,
+        head_dim=16,
     ),
 }
 

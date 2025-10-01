@@ -78,6 +78,13 @@ class DeepSeekV3ModelArgs(BaseModelArgs):
     use_flex_attn: bool = False
     attn_mask_type: str = "causal"
 
+    # Classical Attention
+    n_heads: int = 128
+    q_head: int = 40
+    n_kv_heads: int = 8   
+    head_dim: int = 2048 // 128
+    use_classical_attn: bool = False
+        
     # yarn
     original_seq_len: int = 4096
     rope_theta: float = 10000.0
@@ -126,6 +133,9 @@ class DeepSeekV3ModelArgs(BaseModelArgs):
         
         # pass the force_uniform_routing to the moe_args
         self.moe_args.force_uniform_routing = job_config.model.force_uniform_routing
+
+        # pass the use_classical_attn to the model_args
+        self.use_classical_attn = job_config.model.use_classical_attn
 
     def get_nparams_and_flops(self, model: nn.Module, seq_len: int) -> tuple[int, int]:
         """

@@ -109,6 +109,9 @@ class Model:
     force_uniform_routing: bool = False
     """Whether to force uniform routing for MoE for benchmark test"""
 
+    use_classical_attn: bool = False
+    """Whether to use classical attention (GQA, MHA)"""
+
     print_after_conversion: bool = False
     """
     If true, model definition will be printed to stdout after all model

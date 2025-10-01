@@ -5,10 +5,12 @@ print_args = true
 
 [profiling]
 enable_profiling = true
-save_traces_folder = "dsv3_profile_trace"
+save_traces_folder = "dsv3_16b_profile_trace"
 profile_freq = 6
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
+profile_ranks = [0]     
+profile_with_stack = true # keep call stack in profiled trace 
 
 [metrics]
 log_freq = 1
@@ -24,6 +26,7 @@ hf_assets_path = "./assets/hf/deepseek-moe-16b-base"
 converters = ["float8"]
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
+use_classical_attn = true # use GQA/MHA instead of MLA
 
 [optimizer]
 name = "AdamW"
