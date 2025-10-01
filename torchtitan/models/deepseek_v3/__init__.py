@@ -113,7 +113,7 @@ deepseekv3_configs = {
         dim=5120,
         inter_dim=12288,
         moe_inter_dim=1536,
-        n_layers=60,
+        n_layers=32,
         n_dense_layers=1,
         n_heads=128,
         moe_args=MoEArgs(
@@ -144,7 +144,7 @@ deepseekv3_configs = {
         dim=7168,
         inter_dim=18432,
         moe_inter_dim=2048,
-        n_layers=24,
+        n_layers=12,
         n_dense_layers=0,
         n_heads=128,
         moe_args=MoEArgs(
@@ -167,9 +167,9 @@ deepseekv3_configs = {
         use_flex_attn=True,
         attn_mask_type="block_causal",
         use_classical_attn=False,
-        q_head=40,
-        n_kv_heads=128,
-        head_dim=16,
+        q_head=56,  # Fixed: changed from 40 to 16
+        n_kv_heads=8,
+        head_dim=128,
     ),
 }
 
