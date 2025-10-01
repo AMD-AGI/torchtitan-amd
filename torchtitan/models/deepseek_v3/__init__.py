@@ -104,8 +104,9 @@ deepseekv3_configs = {
         use_flex_attn=True,
         attn_mask_type="block_causal",
         use_classical_attn=False,
+        q_head=16,
         n_kv_heads=16,
-        head_dim=2048 // 128,
+        head_dim=128,
     ),
     "236B": DeepSeekV3ModelArgs(
         vocab_size=102400,
