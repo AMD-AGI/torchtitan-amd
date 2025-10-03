@@ -5,7 +5,7 @@ print_args = true
 
 [profiling]
 enable_profiling = true
-save_traces_folder = "24layers-8nodes-ep8-pp4-vpp3-lbs16-trace"
+save_traces_folder = "12layers-4nodes-ep8-pp2-vpp2-bs16-trace-hsdp"
 profile_freq = 6
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
@@ -13,7 +13,7 @@ profile_ranks = [0, 31]
 profile_with_stack = true # keep call stack in profiled trace 
 
 [metrics]
-log_freq = 10
+log_freq = 1
 disable_color_printing = false
 enable_tensorboard = false
 save_tb_folder = "tb"
@@ -26,6 +26,7 @@ hf_assets_path = "./assets/hf/DeepSeek-V3.1-Base"
 converters = ["float8"]
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
+use_aiter_attention = true 
 use_classical_attn = true # use GQA/MHA instead of MLA
 
 [optimizer]
@@ -48,16 +49,16 @@ steps = 10
 dataset = "c4_test"  # supported datasets: c4_test (2K), c4 (177M)
 
 [parallelism]
-data_parallel_replicate_degree = 1
-data_parallel_shard_degree = -1
+data_parallel_replicate_degree = 2
+data_parallel_shard_degree = 8
 fsdp_reshard_after_forward = "default" # default / never / always
 tensor_parallel_degree = 1
 enable_async_tensor_parallel = false
-pipeline_parallel_degree = 4
+pipeline_parallel_degree = 2
 pipeline_parallel_first_stage_less_layers = 0 # 64 - 3 = 61 layer in deepseek_v3_671b
 pipeline_parallel_last_stage_less_layers = 0
 pipeline_parallel_schedule = "Interleaved1F1B" # "1F1B" or "Interleaved1F1B"
-pipeline_parallel_layers_per_stage = 2 # vpp config; None is no vpp; layer_per_stage = total_layer // vpp 
+pipeline_parallel_layers_per_stage = 3 # vpp config; None is no vpp; layer_per_stage = total_layer // vpp 
 # pipeline_parallel_microbatch_size = 1
 expert_parallel_degree = 8
 expert_tensor_parallel_degree = 1

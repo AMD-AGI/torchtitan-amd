@@ -142,6 +142,7 @@ class Attention(nn.Module):
         super().__init__()
         self.n_heads = model_args.n_heads
         self.use_turbo_fp8_gemm = model_args.use_turbo_fp8_gemm
+        self.use_aiter_attention = model_args.use_aiter_attention
         self.n_kv_heads = (
             model_args.n_heads
             if model_args.n_kv_heads is None
@@ -163,7 +164,7 @@ class Attention(nn.Module):
         # are computed during the model initialization and each layer has its own
         # values of these two variables.
         self.use_rope = use_rope
-        if is_hip():
+        if is_hip() and self.use_aiter_attention:
             self.sdpa = turbo.modules.TurboAttention(causal=True)
         else:
             self.sdpa = build_attention(
@@ -223,7 +224,7 @@ class Attention(nn.Module):
         if self.use_rope:
             xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
 
-        if is_hip():    
+        if is_hip() and self.use_aiter_attention:    
             output = self.sdpa(xq, xk, xv)
         else:
         # repeat k/v heads if n_kv_heads < n_heads
@@ -302,14 +303,20 @@ class FeedForward(nn.Module):
                 granularity=ScalingGranularity.TENSORWISE,
             )
             
+            # Reshape input from 3D (bs, seqlen, dim) to 2D (bs*seqlen, dim) for gemm_fp8
+            # print(f"x.ndim: {x.ndim}")
+            if x.ndim == 3:
+                x_2d = x.view(-1, x.size(-1))
+            else:
+                x_2d = x
+            
             # SwiGLU: w2(silu(w1(x)) * w3(x))
-            # x is already 2D here, no need to reshape
-            w1_output = turbo.ops.gemm_fp8(x, self.w1.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg)
+            w1_output = turbo.ops.gemm_fp8(x_2d, self.w1.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg)
             w1_activated = F.silu(w1_output)
-            w3_output = turbo.ops.gemm_fp8(x, self.w3.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg)
+            w3_output = turbo.ops.gemm_fp8(x_2d, self.w3.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg)
             gated = w1_activated * w3_output
             output = turbo.ops.gemm_fp8(gated, self.w2.weight, trans_a=False, trans_b=True, out_dtype=torch.bfloat16, config=fp8_cfg)
-            return output
+            return output.view(x.shape)
         else:
             return self.w2(F.silu(self.w1(x)) * self.w3(x))
 

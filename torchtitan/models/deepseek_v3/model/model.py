@@ -173,6 +173,7 @@ class MultiHeadAttention(Llama4Attention):
                 self.use_turbo_fp8_gemm = deepseek_args.use_turbo_fp8_gemm
                 self.use_flex_attn = deepseek_args.use_flex_attn
                 self.attn_mask_type = deepseek_args.attn_mask_type
+                self.use_aiter_attention = deepseek_args.use_aiter_attention
         
         # Initialize the parent class with the mock args
         super().__init__(
@@ -239,7 +240,7 @@ class Attention(nn.Module):
             self.softmax_scale = self.softmax_scale * mscale * mscale
 
         # self.sdpa = build_attention(model_args.use_flex_attn, model_args.attn_mask_type)
-        if is_hip():
+        if is_hip() and model_args.use_aiter_attention:
             self.sdpa = turbo.modules.TurboAttention(causal=True)
         else:
             self.sdpa = build_attention(model_args.use_flex_attn, model_args.attn_mask_type)
@@ -321,16 +322,18 @@ class Attention(nn.Module):
             [k_nope, k_pe.expand(-1, -1, self.n_heads, -1)], dim=-1
         )  # (bsz, seqlen, n_heads, qk_head_dim)
 
-        # q = q.transpose(1, 2)  # (bsz, n_heads, seqlen, qk_head_dim)
-        # k = k.transpose(1, 2)  # (bsz, n_heads, seqlen, qk_head_dim)
-        # v = v.transpose(1, 2)  # (bsz, n_heads, seqlen, v_head_dim)
-        # output = self.sdpa(q, k, v, scale=self.softmax_scale)
-        # # Reshape and project output
-        # output = output.transpose(
-        #     1, 2
-        # ).contiguous()  # (bsz, seqlen, n_heads, v_head_dim)
-
-        output = self.sdpa(q, k, v)
+        
+        if is_hip() and self.use_aiter_attention:
+            output = self.sdpa(q, k, v)
+        else:
+            q = q.transpose(1, 2)  # (bsz, n_heads, seqlen, qk_head_dim)
+            k = k.transpose(1, 2)  # (bsz, n_heads, seqlen, qk_head_dim)
+            v = v.transpose(1, 2)  # (bsz, n_heads, seqlen, v_head_dim)
+            output = self.sdpa(q, k, v, scale=self.softmax_scale)
+            # Reshape and project output
+            output = output.transpose(
+                1, 2
+            ).contiguous()  # (bsz, seqlen, n_heads, v_head_dim)
 
         output = output.view(bsz, seqlen, -1)  # (bsz, seqlen, n_heads * v_head_dim)
         if is_hip() and self.use_turbo_fp8_gemm:

@@ -106,6 +106,9 @@ class Model:
     use_turbo_fp8_gemm: bool = False
     """Whether to use Primus Turbo FP8 GEMM on ROCm platform"""
 
+    use_aiter_attention: bool = False
+    """Whether to use Aiter Attention on ROCm platform"""
+
     force_uniform_routing: bool = False
     """Whether to force uniform routing for MoE for benchmark test"""
 

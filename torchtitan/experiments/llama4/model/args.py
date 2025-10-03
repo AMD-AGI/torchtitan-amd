@@ -54,6 +54,9 @@ class TransformerModelArgs(BaseModelArgs):
     
     # Turbo FP8 GEMM
     use_turbo_fp8_gemm: bool = False
+    
+    # Aiter Attention
+    use_aiter_attention: bool = False
 
     def update_from_config(self, job_config: JobConfig, **kwargs) -> None:
         seq_len = job_config.training.seq_len
@@ -76,6 +79,7 @@ class TransformerModelArgs(BaseModelArgs):
         
         # get the use_turbo_fp8_gemm from the job_config
         self.use_turbo_fp8_gemm = job_config.model.use_turbo_fp8_gemm
+        self.use_aiter_attention = job_config.model.use_aiter_attention
 
         logger.info(f"Setting MoE use_turbo_fp8_gemm to: {self.use_turbo_fp8_gemm}")
         

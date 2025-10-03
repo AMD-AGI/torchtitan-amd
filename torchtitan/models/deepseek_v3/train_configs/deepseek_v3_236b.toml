@@ -5,11 +5,11 @@ print_args = true
 
 [profiling]
 enable_profiling = true
-save_traces_folder = "dsv3_236b_pytorch_trace"
+save_traces_folder = "dsv3_236b_pytorch_trace_verify_fsdp"
 profile_freq = 6
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
-profile_ranks = [0]       # profile rank0 only 
+profile_ranks = [0, 31]       # profile rank0 only 
 profile_with_stack = true # keep call stack in profiled trace 
 
 [metrics]
@@ -26,6 +26,7 @@ hf_assets_path = "./assets/hf/DeepSeek-V2"
 converters = ["float8"]
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
+use_aiter_attention = true # use aiter attention or flex attention
 use_classical_attn = false # use GQA/MHA instead of MLA
 
 [optimizer]
@@ -40,7 +41,7 @@ decay_type = "cosine"
 min_lr_factor = 0.1
 
 [training]
-local_batch_size = 8
+local_batch_size = 4
 seq_len = 4096
 max_norm = 1.0  # grad norm clipping
 steps = 10

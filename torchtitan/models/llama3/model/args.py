@@ -36,6 +36,12 @@ class TransformerModelArgs(BaseModelArgs):
     use_flex_attn: bool = False
     attn_mask_type: str = "causal"
     eos_id: int = 0
+    
+    # Turbo FP8 GEMM
+    use_turbo_fp8_gemm: bool = False
+    
+    # Aiter Attention
+    use_aiter_attention: bool = False
 
     def update_from_config(self, job_config: JobConfig, **kwargs) -> None:
         seq_len = job_config.training.seq_len
@@ -51,6 +57,9 @@ class TransformerModelArgs(BaseModelArgs):
             )
 
         self.max_seq_len = seq_len
+        self.use_turbo_fp8_gemm = job_config.model.use_turbo_fp8_gemm
+        self.use_aiter_attention = job_config.model.use_aiter_attention
+
 
     def get_nparams_and_flops(self, model: nn.Module, seq_len: int) -> tuple[int, int]:
         nparams = sum(p.numel() for p in model.parameters())

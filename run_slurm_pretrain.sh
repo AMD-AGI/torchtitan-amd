@@ -16,7 +16,7 @@ export HF_TOKEN=${HF_TOKEN:="your_hf_token"}    # please set your HF token here
 export HOST_MOUNT=${HOST_MOUNT:="/mnt/models/your_path"}     # change this path to host dir intend to be attached to the docker
 export CONTAINER_MOUNT=${CONTAINER_MOUNT:="/workspace"}      # change this path to development workspace path inside the docker
 
-MODEL_NAME=deepseek-671b # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
+MODEL_NAME=llama3-70b # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
 # Setup the config file and repo id for the model
 if [ "$MODEL_NAME" == "llama4-scout" ]; then
   export CONFIG_FILE=${CONFIG_FILE:="torchtitan/experiments/llama4/train_configs/llama4_17bx16e.toml"}     
@@ -33,9 +33,15 @@ elif [ "$MODEL_NAME" == "deepseek-236b" ]; then
 elif [ "$MODEL_NAME" == "deepseek-671b" ]; then
   export CONFIG_FILE=${CONFIG_FILE:="torchtitan/models/deepseek_v3/train_configs/deepseek_v3_671b.toml"}  
   export REPO_ID=${REPO_ID:="deepseek-ai/DeepSeek-V3.1-Base"}
-elif [ "$MODEL_NAME" == "llama3" ]; then
+elif [ "$MODEL_NAME" == "llama3-70b" ]; then
+  export CONFIG_FILE=${CONFIG_FILE:="torchtitan/models/llama3/train_configs/llama3_70b.toml"}  
+  export REPO_ID=${REPO_ID:="meta-llama/Llama-3.1-70B"}
+elif [ "$MODEL_NAME" == "llama3-8b" ]; then
   export CONFIG_FILE=${CONFIG_FILE:="torchtitan/models/llama3/train_configs/llama3_8b.toml"}  
   export REPO_ID=${REPO_ID:="meta-llama/Llama-3.1-8B"}
+elif [ "$MODEL_NAME" == "llama3-405b" ]; then
+  export CONFIG_FILE=${CONFIG_FILE:="torchtitan/models/llama3/train_configs/llama3_405b.toml"}  
+  export REPO_ID=${REPO_ID:="meta-llama/Llama-3.1-405B"}
 else
   echo "Please add new mode confing in the run_slurm_pretrain.sh file"
   exit 1
@@ -44,7 +50,7 @@ fi
 # Setup the turbo wheel file and torch version
 export TORCH_VERSION=${TORCH_VERSION:="2.9.0.dev20250825+rocm6.3"}                                   # torch version to install in the container
 export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+2e40784-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
-export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"2"}
+export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"4"}
 
 echo "get first node"
 # Get the list of nodes and the first node (master node)
