@@ -41,6 +41,7 @@ def maybe_enable_profiling(
         if rank not in profiling_config.profile_ranks:
             torch_profiler = contextlib.nullcontext()
             yield None # only profile the specified ranks
+            return
         
         def trace_handler(prof):
             curr_trace_dir_name = "iteration_" + str(prof.step_num)
