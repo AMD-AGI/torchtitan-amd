@@ -25,6 +25,8 @@ from torch.distributed.pipelining.schedules import (
 from torchtitan.config import JobConfig
 from torchtitan.tools.logging import logger
 
+from .amd_1f1b import AmdPipelineStage, ScheduleAmdInterleaved1F1B
+
 
 __all__ = [
     "build_pipeline_schedule",
@@ -35,13 +37,13 @@ __all__ = [
 
 
 def build_pipeline_schedule(
-    job_config: JobConfig, stages: list[PipelineStage], loss_fn: Callable
+    job_config: JobConfig, stages: list[AmdPipelineStage], loss_fn: Callable
 ) -> _PipelineSchedule:
     """Builds a pipeline schedule for the given job configuration and stages.
 
     Args:
         job_config (JobConfig): The job configuration.
-        stages (list[PipelineStage]): The stages to be scheduled.
+        stages (list[AmdPipelineStage]): The stages to be scheduled.
         loss_fn (Callable): The loss function.
 
     Returns:
@@ -57,9 +59,10 @@ def build_pipeline_schedule(
             )
         schedule_class = _PipelineScheduleRuntime
     else:
-        schedule_class = get_schedule_class(
-            job_config.parallelism.pipeline_parallel_schedule
-        )
+        # schedule_class = get_schedule_class(
+        #     job_config.parallelism.pipeline_parallel_schedule
+        # )
+        schedule_class = ScheduleAmdInterleaved1F1B
 
     looped_schedule = issubclass(schedule_class, PipelineScheduleMulti)
     microbatch_size = job_config.parallelism.pipeline_parallel_microbatch_size
@@ -241,7 +244,7 @@ def pipeline_module_split(
     pp_schedule: str,
     device: torch.device,
     module_names_per_stage: list[list[str]],
-) -> tuple[list[PipelineStage], list[nn.Module]]:
+) -> tuple[list[AmdPipelineStage], list[nn.Module]]:
     """
     This API creates pipeline stages based on specified module names for each stage.
 
@@ -279,7 +282,7 @@ def pipeline_module_split(
 
     def _build_stage_from_modules(
         stage_idx: int, module_names: list[str], num_stages: int
-    ) -> tuple[PipelineStage, nn.Module]:
+    ) -> tuple[AmdPipelineStage, nn.Module]:
         model = copy.deepcopy(whole_model)
 
         # Create a set of modules to keep for faster lookup
@@ -322,7 +325,7 @@ def pipeline_module_split(
                 # Replace with None
                 setattr(model, module_name, None)
 
-        stage = PipelineStage(
+        stage = AmdPipelineStage(
             model,
             stage_idx,
             num_stages,
@@ -335,7 +338,8 @@ def pipeline_module_split(
     stages = []
     models = []
 
-    schedule_class = get_schedule_class(pp_schedule)
+    # schedule_class = get_schedule_class(pp_schedule)
+    schedule_class = ScheduleAmdInterleaved1F1B
     style = (
         "v" if schedule_class in (ScheduleZBVZeroBubble, ScheduleDualPipeV) else "loop"
     )
