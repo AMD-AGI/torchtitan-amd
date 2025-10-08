@@ -214,6 +214,7 @@ class Attention(nn.Module):
         self.qk_head_dim = model_args.qk_nope_head_dim + model_args.qk_rope_head_dim
         self.v_head_dim = model_args.v_head_dim
         self.use_turbo_fp8_gemm = model_args.use_turbo_fp8_gemm
+        self.use_aiter_attention = model_args.use_aiter_attention
 
         if self.q_lora_rank == 0:
             self.wq = nn.Linear(self.dim, self.n_heads * self.qk_head_dim, bias=False)
@@ -240,7 +241,7 @@ class Attention(nn.Module):
             self.softmax_scale = self.softmax_scale * mscale * mscale
 
         # self.sdpa = build_attention(model_args.use_flex_attn, model_args.attn_mask_type)
-        if is_hip() and model_args.use_aiter_attention:
+        if is_hip() and self.use_aiter_attention:
             self.sdpa = turbo.modules.TurboAttention(causal=True)
         else:
             self.sdpa = build_attention(model_args.use_flex_attn, model_args.attn_mask_type)
