@@ -71,14 +71,14 @@ mkdir -p $TMP_BUILD_DIR ;
 export CACHE_TAG="ubuntu"
 #export AITER_JIT_DIR=$TMP_BUILD_DIR/${CACHE_TAG}_aiter_cache ; 
 #echo AITER_JIT_DIR is $AITER_JIT_DIR ; 
-pip3 install torch==$TORCH_VERSION torchvision --index-url https://download.pytorch.org/whl/nightly/rocm6.3 --force-reinstall ; 
-#pip3 install /home/yanyuan.qin@amd.com/meta/torch-2.9.0.dev20250825+rocm6.3-cp310-cp310-manylinux_2_28_x86_64.whl --force-reinstall ; 
-pip3 install -r requirements.txt ; 
-pip3 install -e . ; 
-pip3 install -qq hip-python --extra-index-url https://test.pypi.org/simple ; 
-pip3 install --extra-index-url https://test.pypi.org/simple $PRIMUS_TURBO_WHEEL ; 
-pip3 install torchao ; 
-pip3 uninstall numpy -y && pip3 install numpy==1.26.4; 
+# pip3 install torch==$TORCH_VERSION torchvision --index-url https://download.pytorch.org/whl/nightly/rocm6.3 --force-reinstall ; 
+# #pip3 install /home/yanyuan.qin@amd.com/meta/torch-2.9.0.dev20250825+rocm6.3-cp310-cp310-manylinux_2_28_x86_64.whl --force-reinstall ; 
+# pip3 install -r requirements.txt ; 
+# pip3 install -e . ; 
+# pip3 install -qq hip-python --extra-index-url https://test.pypi.org/simple ; 
+# pip3 install --extra-index-url https://test.pypi.org/simple $PRIMUS_TURBO_WHEEL ; 
+# pip3 install torchao ; 
+# pip3 uninstall numpy -y && pip3 install numpy==1.26.4; 
 python scripts/download_hf_assets.py --assets tokenizer --repo_id $REPO_ID --hf_token=$HF_TOKEN
 
 # Set cluster ENV, those info is from k8s by default
