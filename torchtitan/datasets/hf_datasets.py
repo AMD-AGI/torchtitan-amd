@@ -11,7 +11,7 @@ from typing import Any, Callable, Iterator, Tuple, Dict
 
 import torch
 
-from datasets import Dataset, load_dataset
+from datasets import Dataset, load_dataset, load_from_disk
 from datasets.distributed import split_dataset_by_node
 from torch.distributed.checkpoint.stateful import Stateful
 from torch.utils.data import IterableDataset, DataLoader
@@ -59,6 +59,9 @@ def _load_c4_dataset(dataset_path: str, split: str):
     """Load C4 dataset with default configuration."""
     return load_dataset(dataset_path, name="en", split=split, streaming=True)
 
+def _load_c4_test_local_dataset(dataset_path: str):
+    """Load C4 dataset with default configuration."""
+    return load_from_disk(dataset_path)
 
 def _process_c4_text(sample: dict[str, Any]) -> str:
     """Process C4 dataset sample text."""
@@ -77,6 +80,11 @@ DATASETS = {
     "c4": DatasetConfig(
         path="allenai/c4",
         loader=partial(_load_c4_dataset, split="train"),
+        text_processor=_process_c4_text,
+    ),
+     "c4_test_local": DatasetConfig(
+        path="assets/hf/c4_test",
+        loader=_load_c4_test_local_dataset,
         text_processor=_process_c4_text,
     ),
     "c4_test": DatasetConfig(
