@@ -4,7 +4,7 @@ set -ex
 export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"2"}
 export TORCH_NCCL_HIGH_PRIORITY=${TORCH_NCCL_HIGH_PRIORITY:-"1"}
 export NCCL_CHECKS_DISABLE=${NCCL_CHECKS_DISABLE:-"1"}
-export NCCL_IB_GID_INDEX=${NCCL_IB_GID_INDEX:-"3"}
+export NCCL_IB_GID_INDEX=${NCCL_IB_GID_INDEX:-"1"}
 export NCCL_CROSS_NIC=${NCCL_CROSS_NIC:-"0"}
 export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-"1"}
 export NCCL_PROTO=${NCCL_PROTO:-"Simple"}
@@ -31,6 +31,26 @@ echo "SLURM_NNODES: $SLURM_NNODES"
 NNODES=$SLURM_NNODES
 NODE_RANK=${SLURM_NODEID}
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
+
+if [ "$USING_AINIC" == "1" ]; then
+    # Setup Pollara specific args
+    echo "Using AINIC"
+    echo "RCCL_HOME_DIR: $RCCL_HOME_DIR"
+    echo "ANP_HOME_DIR: $ANP_HOME_DIR"
+    export NCCL_MAX_P2P_CHANNELS=56
+    export NCCL_IB_TC=104
+    export NCCL_IB_FIFO_TC=192
+    export NET_OPTIONAL_RECV_COMPLETION=1
+    export NCCL_IB_USE_INLINE=1
+    export RCCL_GDR_FLUSH_GPU_MEM_NO_RELAXED_ORDERING=0
+    export NCCL_GDR_FLUSH_DISABLE=1
+    export NCCL_DMABUF_ENABLE=0
+    export NCCL_IGNORE_CPU_AFFINITY=1
+    export NCCL_IB_QPS_PER_CONNECTION=1
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+    #export LD_PRELOAD=/usr/local/lib/librccl-net.so:/usr/local/lib/librccl.so.1.0
+fi
+
 
 overrides=""
 if [ $# -ne 0 ]; then
