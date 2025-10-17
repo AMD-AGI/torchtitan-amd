@@ -1,21 +1,22 @@
 #!/bin/bash
 #SBATCH --job-name=john-titan
-#SBATCH --output=logs/llama3-8B/llama-test.%j.out
-#SBATCH --nodes=8                            # Number of nodes, Adjust as necessary
+#SBATCH --output=logs/deepseek-671b/deepseek-671b.%j.out
+#SBATCH --nodes=16                            # Number of nodes, Adjust as necessary
 #SBATCH --ntasks-per-node=1                  # One task per GPU -> total 8 tasks per node
 #SBATCH --cpus-per-task=96                   # assign all CPUs to the job
 #SBATCH --gres=gpu:8                         # Request 8 GPUs per node
 #SBATCH --time=01:00:00                      # Adjust as necessary
-##SBATCH --nodelist=chi[2612,2631,2643-2646,2649,2661,2672]
-
+#SBATCH --exclude=chi[2888-2890,2884-2885]
+##SBATCH --nodelist=chi[2866,2867,2868,2869,2870,2871,2872,2873,2874,2875,2877,2878,2879,2880,2881,2882,2883,2893,2894,2895,2896,2897,2898,2899,2900,2901,2902]
+srun docker login -u rocmshared -p password 
 # Setup your keys for HF and WADNB
-export HF_TOKEN=${HF_TOKEN:="your_hf_token"}    # please set your HF token here or via environment variable
+export HF_TOKEN=${HF_TOKEN:="hf_token"}    # please set your HF token here or via environment variable
 # export WANDB_API_KEY=${WANDB_API_KEY:="your_wandb_token"}    # please set your WANDB token here
 # Setup the mount points for the host and container
 export HOST_MOUNT=${HOST_MOUNT:="/mnt/models/john"}     # change this path to host dir intend to be attached to the docker
 export CONTAINER_MOUNT=${CONTAINER_MOUNT:="/workspace/john"}      # change this path to development workspace path inside the docker
 
-MODEL_NAME=llama3-8b # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
+MODEL_NAME=deepseek-671b # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
 # Setup the config file and repo id for the model
 if [ "$MODEL_NAME" == "llama4-scout" ]; then
   export CONFIG_FILE=${CONFIG_FILE:="torchtitan/experiments/llama4/train_configs/llama4_17bx16e.toml"}     
@@ -47,7 +48,7 @@ else
 fi
                            
 # Setup the turbo wheel file and torch version
-export TORCH_VERSION=${TORCH_VERSION:="2.9.0.dev20250825+rocm6.3"}                                   # torch version to install in the container
+export TORCH_VERSION=${TORCH_VERSION:="2.9.0.dev20250825+rocm6.3"} # torch version to install in the container
 
 export PRIMUS_TURBO_WHEEL=${PRIMUS_TURBO_WHEEL:="3rdparty/primus_turbo-0.1.0+dbeaf79-cp310-cp310-linux_x86_64.whl"} # path to your local bulid turbo wheel file
 
@@ -70,14 +71,9 @@ export SLURM_MASTER_PORT=${SLURM_MASTER_PORT:-"29565"}
 echo "MASTER_ADDR=$SLURM_MASTER_ADDR"
 echo "MASTER_PORT=$SLURM_MASTER_PORT"
 
-# export OMPI_MCA_btl_tcp_if_include=enp193s0f1np1; export OMPI_MCA_btl_tcp6=0 ; mpirun --allow-run-as-root -np 16 -N 8 -H chi2740:8,chi2742:8 --mca pml ob1 --mca oob_tcp_if_include "enp193s0f1np1"  -x UCX_IB_SRQ_DISABLE=1  -x NCCL_DEBUG=WARN -x NCCL_IB_ROCE_VERSION_NUM=2  \
-# -x NCCL_NET_GDR_READ=1 -x NCCL_SHM_DISABLE=1 -x NCCL_IB_PCI_RELAXED_ORDERING=1 -x HSA_FORCE_FINE_GRAIN_PCIE=1 -x NCCL_IGNORE_CPU_AFFINITY=1 -x NCCL_MIN_NCHANNELS=64 -x NCCL_MAX_NCHANNELS=64\
-#  -x NCCL_IB_HCA=ionic_0,ionic_1,ionic_2,ionic_3,ionic_4,ionic_5,ionic_6,ionic_7 -x NCCL_SOCKET_IFNAME=enp193s0f1np1 -x NCCL_PXN_DISABLE=0 -x HSA_NO_SCRATCH_RECLAIM=1 /mnt/models/pras/rccl-tests/build/all_reduce_perf -b 8 -e 32g -f 2 -g 1
 
-srun docker login -u username -p password 
-
-# export ANP_HOME_DIR="/shared/apps/ubuntu/rocm-7.0.1/amd-anp-1.1.0-5"
-# export RCCL_HOME_DIR="/shared/apps/ubuntu/rocm-7.0.1/rccl-drop-2025-08"
+export ANP_HOME_DIR="/mnt/models/apps/amd-anp" # need to build it
+export RCCL_HOME_DIR="/mnt/models/apps/rccl" # need to build it
 
 export USING_AINIC=${USING_AINIC:="1"}  # set to 1 if using AINIC, otherwise 0
 export NCCL_DEBUG=${NCCL_DEBUG:="INFO"}
@@ -92,7 +88,7 @@ if [ "$USING_AINIC" == "1" ]; then
 else
     # Define the Docker image
     export NCCL_IB_HCA=${NCCL_IB_HCA:="bnxt_re0,bnxt_re1,bnxt_re2,bnxt_re3,bnxt_re4,bnxt_re5,bnxt_re7,bnxt_re8"} # modify based on the GPU NiC settings
-    export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:="enp49s0f0np0"}
+    export NCCL_SOCKET_IFNAME=${NCCL_SOCKET_IFNAME:="enp193s0f1np1"}
     export DOCKER_IMAGE=${DOCKER_IMAGE:-"docker.io/rocm/pytorch-private:titan-mi355-10.16"}
 fi 
 echo $NCCL_IB_HCA
@@ -108,25 +104,25 @@ export TITAN_DIR=${PWD}                                      # change this path 
 # Setup the IB mount options
 if [ -e "/etc/libibverbs.d/bnxt_re.driver" ]; then
   echo "/etc/libibverbs.d exists and using broadcom or aininc."
-  export IB_MOUNT_OPTIONS=" -v /etc/libibverbs.d/:/etc/libibverbs.d \
+  export IB_MOUNT_OPTIONS=" -v /etc/libibverbs.d/:/etc/libibverbs.d  \
+  -v /usr/lib/x86_64-linux-gnu/libibverbs/:/usr/lib/x86_64-linux-gnu/libibverbs/ \
   "
 else
   echo "/etc/libibverbs.d does not exist not using ."
   export IB_MOUNT_OPTIONS=""
 fi
 echo $IB_MOUNT_OPTIONS
-
-export OMPI_MCA_btl_tcp_if_include=enp193s0f1np1; 
-export OMPI_MCA_btl_tcp6=0 ; 
-
+# -v /usr/lib/x86_64-linux-gnu/:/usr/lib/x86_64-linux-gnu/ \ 
+# export OMPI_MCA_btl_tcp_if_include=enp193s0f1np1; 
+# export OMPI_MCA_btl_tcp6=0 ; 
+export USE_ROCM_AITER_ROPE_BACKEND=0
 # export IB_MOUNT_OPTIONS=""
 # -v /usr/lib/x86_64-linux-gnu/:/usr/lib/x86_64-linux-gnu/
-  # -v /usr/local/lib/librccl.so.1:/usr/local/lib/librccl.so.1 \
-  # -v /usr/local/lib/librccl-net.so:/usr/local/lib/librccl-net.so \
-  # -v /usr/local/lib/librccl.so.1.0:/usr/local/lib/librccl.so.1.0 \
-# setup the CPU governor to performance and disable numa balancing 
-srun bash -c 'echo 0 | sudo tee /proc/sys/kernel/numa_balancing; '
+  # -v /lib/x86_64-linux-gnu/libc.so.6:/lib/x86_64-linux-gnu/libc.so.6:ro \
+  # -v /lib/x86_64-linux-gnu/libstdc++.so.6:/lib/x86_64-linux-gnu/libstdc++.so.6:ro \
+  # -v /usr/lib/x86_64-linux-gnu/libibverbs/libionic-rdmav34.so:/usr/lib/x86_64-linux-gnu/libibverbs/libionic-rdmav34.so:ro \
 
+srun bash -c 'echo 0 | sudo tee /proc/sys/kernel/numa_balancing; '
 
 # Collect environment info for cache tagging, skip aiter jit by read from cache
 OS_VER=$(grep ^PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"' | tr ' ' '_' | tr -d '()')
@@ -140,7 +136,6 @@ fi
 KERNEL_VER=$(uname -r | tr '.' '_' | tr '-' '_')
 
 export CACHE_TAG="${OS_VER}_py${PY_VER}_rocm${ROCM_VER}_amdgpu${AMDGPU_VER}_kernel${KERNEL_VER}"
-
 
 # Run the Docker container with the script
 srun bash -c "docker ps -aq | xargs -r docker rm -f ; \
@@ -163,9 +158,11 @@ docker run --rm \
  --env TORCH_VERSION=\$TORCH_VERSION \
  --env PRIMUS_TURBO_WHEEL=\$PRIMUS_TURBO_WHEEL \
  --env CONTAINER_MOUNT=\$CONTAINER_MOUNT \
+ --env USE_ROCM_AITER_ROPE_BACKEND=\$USE_ROCM_AITER_ROPE_BACKEND \
  --ipc=host --network=host --device=/dev/kfd --device=/dev/dri  --cap-add=SYS_PTRACE  --cap-add=CAP_SYS_ADMIN  \
  --security-opt seccomp=unconfined --group-add video --privileged --device=/dev/infiniband \
  -v \$HOST_MOUNT:\$CONTAINER_MOUNT \
+ -v /mnt/models/:/mnt/models/ \
  \${IB_MOUNT_OPTIONS} \
  \$DOCKER_IMAGE /bin/bash -c \
  'echo \$(date) ; \

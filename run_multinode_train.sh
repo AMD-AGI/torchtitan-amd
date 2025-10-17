@@ -4,7 +4,7 @@ set -ex
 export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"2"}
 export TORCH_NCCL_HIGH_PRIORITY=${TORCH_NCCL_HIGH_PRIORITY:-"1"}
 export NCCL_CHECKS_DISABLE=${NCCL_CHECKS_DISABLE:-"1"}
-export NCCL_IB_GID_INDEX=${NCCL_IB_GID_INDEX:-"1"}
+# export NCCL_IB_GID_INDEX=${NCCL_IB_GID_INDEX:-"1"} # redundant with  NCCL_IB_ROCE_VERSION_NUM=2
 export NCCL_CROSS_NIC=${NCCL_CROSS_NIC:-"0"}
 export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-"1"}
 export NCCL_PROTO=${NCCL_PROTO:-"Simple"}
@@ -38,8 +38,8 @@ if [ "$USING_AINIC" == "1" ]; then
     echo "RCCL_HOME_DIR: $RCCL_HOME_DIR"
     echo "ANP_HOME_DIR: $ANP_HOME_DIR"
     export NCCL_MAX_P2P_CHANNELS=56
-    export NCCL_IB_TC=104
-    export NCCL_IB_FIFO_TC=192
+    export NCCL_IB_TC=104      # traffic class 
+    export NCCL_IB_FIFO_TC=192 # match network cts  
     export NET_OPTIONAL_RECV_COMPLETION=1
     export NCCL_IB_USE_INLINE=1
     export RCCL_GDR_FLUSH_GPU_MEM_NO_RELAXED_ORDERING=0
@@ -47,8 +47,9 @@ if [ "$USING_AINIC" == "1" ]; then
     export NCCL_DMABUF_ENABLE=0
     export NCCL_IGNORE_CPU_AFFINITY=1
     export NCCL_IB_QPS_PER_CONNECTION=1
-    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    #export LD_PRELOAD=/usr/local/lib/librccl-net.so:/usr/local/lib/librccl.so.1.0
+    export NCCL_IB_ROCE_VERSION_NUM=2 # make  
+    export LD_LIBRARY_PATH=${RCCL_HOME_DIR}/build/release:${ANP_HOME_DIR}/build:${ANP_HOME_DIR}/build/lib:$LD_LIBRARY_PATH
+    export LD_PRELOAD=${ANP_HOME_DIR}/build/librccl-net.so:${RCCL_HOME_DIR}/build/release/librccl.so.1.0
 fi
 
 

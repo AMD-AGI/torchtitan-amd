@@ -340,7 +340,7 @@ def pipeline_module_split(
     # schedule_class = get_schedule_class(pp_schedule)
     schedule_class = ScheduleAmdInterleaved1F1B
     style = (
-        "v" if schedule_class in (ScheduleZBVZeroBubble) else "loop"
+        "v" if schedule_class is ScheduleZBVZeroBubble else "loop"
     )
 
     for stage_idx in stage_ids_this_rank(pp_rank, pp_size, num_stages, style=style):
