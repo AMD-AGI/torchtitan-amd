@@ -1,0 +1,90 @@
+[job]
+dump_folder = "./outputs/deepseek-671b-full-32node"
+description = "DeepSeek-V3 671B model training"
+print_args = true
+
+[profiling]
+enable_profiling = false
+save_traces_folder = "32node"
+profile_freq = 6
+enable_memory_snapshot = false
+save_memory_snapshot_folder = "memory_snapshot"
+profile_ranks = [0]     
+profile_with_stack = true # keep call stack in profiled trace 
+
+[metrics]
+log_freq = 1
+disable_color_printing = false
+enable_tensorboard = false
+save_tb_folder = "tb"
+enable_wandb = true
+
+[model]
+name = "deepseek_v3"
+flavor = "671B"
+hf_assets_path = "./assets/hf/DeepSeek-V3.1-Base"
+converters = ["float8"]
+use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
+force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
+use_aiter_attention = true 
+use_classical_attn = true # use GQA/MHA instead of MLA
+
+[optimizer]
+name = "AdamW"
+lr = 2.2e-4
+eps = 1e-8
+
+[lr_scheduler]
+warmup_steps = 2  # lr scheduler warm up, normally 20% of the train steps
+decay_ratio = 0.8  # lr scheduler decay ratio, 80% of the train steps
+decay_type = "cosine"
+min_lr_factor = 0.1
+
+[training]
+local_batch_size = 32
+seq_len = 4096
+max_norm = 1.0  # grad norm clipping
+steps = 356317
+# compile = false
+dataset = "c4_cache"  # supported datasets: c4_test (2K), c4 (177M)
+
+[parallelism]
+data_parallel_replicate_degree = 1
+data_parallel_shard_degree = -1
+fsdp_reshard_after_forward = "default" # default / never / always
+tensor_parallel_degree = 1
+enable_async_tensor_parallel = false
+pipeline_parallel_degree = 8
+pipeline_parallel_first_stage_less_layers = 0 # 64 - 3 = 61 layer in deepseek_v3_671b
+pipeline_parallel_last_stage_less_layers = 0
+pipeline_parallel_schedule = "Interleaved1F1B" # "1F1B" or "Interleaved1F1B"
+pipeline_parallel_layers_per_stage = 2 # vpp config; None is no vpp; layer_per_stage = total_layer // vpp 
+# pipeline_parallel_microbatch_size = 1
+expert_parallel_degree = 8
+expert_tensor_parallel_degree = 1
+
+[checkpoint]
+enable = false
+folder = "checkpoint"
+interval = 500
+last_save_model_only = false
+export_dtype = "float32"
+async_mode = "disabled"  # ["disabled", "async", "async_with_pinned_mem]"
+
+[activation_checkpoint]
+mode = "full"  # ["none", "selective", "full"]
+selective_ac_option = 'op'  # 'int' = ac every positive int layer or 'op', ac based on ops policy
+
+[compile]
+enable=true
+components = ["loss"] # ["model", "loss"], currently we doesn't support compile model
+
+[float8]
+enable_fsdp_float8_all_gather = false
+precompute_float8_dynamic_scale_for_fsdp = false
+filter_fqns = ["output", "router.gate"]
+moe_fqns = ["experts"]
+
+[comm]
+init_timeout_seconds = 1200  # change init 
+train_timeout_seconds = 600  

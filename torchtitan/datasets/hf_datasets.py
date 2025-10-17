@@ -59,6 +59,10 @@ def _load_c4_dataset(dataset_path: str, split: str):
     """Load C4 dataset with default configuration."""
     return load_dataset(dataset_path, name="en", split=split, streaming=True)
 
+def _load_c4_cache_dataset(dataset_path: str, split: str):
+    """Load C4 dataset with default configuration."""
+    return load_dataset(dataset_path, name="en", cache_dir="/wekafs/hf_cache/datasets", split=split)
+
 def _load_c4_test_local_dataset(dataset_path: str):
     """Load C4 dataset with default configuration."""
     return load_from_disk(dataset_path)
@@ -80,6 +84,11 @@ DATASETS = {
     "c4": DatasetConfig(
         path="allenai/c4",
         loader=partial(_load_c4_dataset, split="train"),
+        text_processor=_process_c4_text,
+    ),
+    "c4_cache": DatasetConfig(
+        path="allenai/c4",
+        loader=partial(_load_c4_cache_dataset, split="train"),
         text_processor=_process_c4_text,
     ),
      "c4_test_local": DatasetConfig(
