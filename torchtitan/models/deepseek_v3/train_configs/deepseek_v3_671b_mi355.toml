@@ -1,15 +1,15 @@
 [job]
-dump_folder = "./outputs"
-description = "DeepSeek-V3 16B model training"
+dump_folder = "./outputs/deepseek-671b-outputs"
+description = "DeepSeek-V3 671B model training"
 print_args = true
 
 [profiling]
-enable_profiling = true
-save_traces_folder = "dsv3_16b_profile_trace"
-profile_freq = 6
+enable_profiling = false
+save_traces_folder = "dsv3_671b_trace"
+profile_freq = 6     # 6 for 16 N, 7 for 32N, 8 for 64N, 9 for 64N gbs4096  
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
-profile_ranks = [0]     
+profile_ranks = [0, 31]     
 profile_with_stack = true # keep call stack in profiled trace 
 
 [metrics]
@@ -21,31 +21,37 @@ enable_wandb = true
 
 [model]
 name = "deepseek_v3"
-flavor = "16B"
-hf_assets_path = "./assets/hf/deepseek-moe-16b-base"
-# converters = ["float8"]  # Disabled: conflicts with use_turbo_fp8_gemm=true (Primus Turbo handles FP8 directly)
+flavor = "671B"
+hf_assets_path = "./assets/hf/DeepSeek-V3.1-Base"
+# converters = ["float8"] 
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
-use_aiter_attention = true
+use_aiter_attention = true 
 use_classical_attn = true # use GQA/MHA instead of MLA
 
 [optimizer]
 name = "AdamW"
-lr = 2.2e-4
+lr = 5.0e-6  # Very low LR for FP8 stability
 eps = 1e-8
 
 [lr_scheduler]
-warmup_steps = 2  # lr scheduler warm up, normally 20% of the train steps
+warmup_steps = 1000  # Long warmup for FP8 stability
 decay_ratio = 0.8  # lr scheduler decay ratio, 80% of the train steps
 decay_type = "cosine"
 min_lr_factor = 0.1
 
+[comm]
+init_timeout_seconds = 600  # change init 
+train_timeout_seconds = 600   
+
 [training]
 local_batch_size = 32
+# global_batch_size = 4096
 seq_len = 4096
-max_norm = 1.0  # grad norm clipping
-steps = 10
-dataset = "c4_test"  # supported datasets: c4_test (2K), c4 (177M)
+max_norm = 0.3  
+steps = 10000
+# compile = false
+dataset = "c4_local"  # c4_local, c4_test, supported datasets: c4_test (2K), c4 (177M)
 
 [parallelism]
 data_parallel_replicate_degree = 1
@@ -53,29 +59,33 @@ data_parallel_shard_degree = -1
 fsdp_reshard_after_forward = "default" # default / never / always
 tensor_parallel_degree = 1
 enable_async_tensor_parallel = false
-pipeline_parallel_degree = 1
-pipeline_parallel_schedule = "Interleaved1F1B"
+pipeline_parallel_degree = 8
+pipeline_parallel_first_stage_less_layers = 0 # 64 - 3 = 61 layer in deepseek_v3_671b
+pipeline_parallel_last_stage_less_layers = 0
+pipeline_parallel_schedule = "Interleaved1F1B" # "1F1B" or "Interleaved1F1B"
+pipeline_parallel_layers_per_stage = 2 # vpp config; None is no vpp; layer_per_stage = total_layer // vpp 
+# pipeline_parallel_microbatch_size = 1
 expert_parallel_degree = 8
 expert_tensor_parallel_degree = 1
 
 [checkpoint]
 enable = false
 folder = "checkpoint"
-interval = 100
+interval = 500
 last_save_model_only = true
 export_dtype = "float32"
 async_mode = "disabled"  # ["disabled", "async", "async_with_pinned_mem]"
 
 [activation_checkpoint]
-mode = "selective"  # ["none", "selective", "full"]
+mode = "full"  # ["none", "selective", "full"]
 selective_ac_option = 'op'  # 'int' = ac every positive int layer or 'op', ac based on ops policy
 
 [compile]
 enable=true
-components = ["model","loss"] # ["model", "loss"]
+components = ["model", "loss"] # ["model", "loss"]
 
 [float8]
 enable_fsdp_float8_all_gather = true
 precompute_float8_dynamic_scale_for_fsdp = true
-filter_fqns = ["output", "router.gate"]
+filter_fqns = ["output", "router.gate"] # "wq_a", "wq_b", "wkv_a", "wkv_b", "wo" 
 moe_fqns = ["experts"]

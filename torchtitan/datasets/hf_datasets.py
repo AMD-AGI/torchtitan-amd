@@ -63,6 +63,14 @@ def _load_c4_cache_dataset(dataset_path: str, split: str):
     """Load C4 dataset with default configuration."""
     return load_dataset(dataset_path, name="en", cache_dir="/wekafs/hf_cache/datasets", split=split)
 
+def _load_c4_local_dataset(dataset_path: str, split: str):
+    """Load C4 dataset from local HuggingFace format."""
+    # Load from pre-converted HuggingFace dataset format
+    ds = load_from_disk(dataset_path)
+    # Return the specified split (train or validation)
+    return ds[split] if isinstance(ds, dict) else ds
+
+
 def _load_c4_test_local_dataset(dataset_path: str):
     """Load C4 dataset with default configuration."""
     return load_from_disk(dataset_path)
@@ -89,6 +97,11 @@ DATASETS = {
     "c4_cache": DatasetConfig(
         path="allenai/c4",
         loader=partial(_load_c4_cache_dataset, split="train"),
+        text_processor=_process_c4_text,
+    ),
+    "c4_local": DatasetConfig(
+        path="/mnt/models/dataset/c4/en-100",
+        loader=partial(_load_c4_local_dataset, split="train"),
         text_processor=_process_c4_text,
     ),
      "c4_test_local": DatasetConfig(

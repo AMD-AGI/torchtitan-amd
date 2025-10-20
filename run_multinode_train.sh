@@ -4,7 +4,6 @@ set -ex
 export GPU_MAX_HW_QUEUES=${GPU_MAX_HW_QUEUES:-"2"}
 export TORCH_NCCL_HIGH_PRIORITY=${TORCH_NCCL_HIGH_PRIORITY:-"1"}
 export NCCL_CHECKS_DISABLE=${NCCL_CHECKS_DISABLE:-"1"}
-# export NCCL_IB_GID_INDEX=${NCCL_IB_GID_INDEX:-"1"} # redundant with  NCCL_IB_ROCE_VERSION_NUM=2
 export NCCL_CROSS_NIC=${NCCL_CROSS_NIC:-"0"}
 export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-"1"}
 export NCCL_PROTO=${NCCL_PROTO:-"Simple"}
@@ -32,6 +31,25 @@ NNODES=$SLURM_NNODES
 NODE_RANK=${SLURM_NODEID}
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
+export REBUILD_PRIMUS_TURBO=${REBUILD_PRIMUS_TURBO:-0}
+# install primus turbo from source
+if [ "$REBUILD_PRIMUS_TURBO" == "1" ]; then
+    echo "Rebuilding Primus Turbo from source..."
+    mkdir -p "/workspace/turbo"
+    cd "/workspace/turbo"
+    git clone https://github.com/AMD-AGI/Primus-Turbo.git --recursive
+    cd Primus-Turbo
+    git checkout main
+    pip3 install -r requirements.txt
+    pip3 install --no-build-isolation .
+    # Set GPU_ARCHS to compile Turbo for multiple AMD GPU architectures.
+    GPU_ARCHS="gfx942;gfx950" pip3 install --no-build-isolation .
+    cd "$CONTAINER_MOUNT/torchtitan-amd"
+    echo "Rebuilding Primus Turbo from source done."
+else
+    echo "Skip Primus Turbo rebuild. REBUILD_PRIMUS_TURBO=$REBUILD_PRIMUS_TURBO"
+fi
+
 if [ "$USING_AINIC" == "1" ]; then
     # Setup Pollara specific args
     echo "Using AINIC"
@@ -47,9 +65,12 @@ if [ "$USING_AINIC" == "1" ]; then
     export NCCL_DMABUF_ENABLE=0
     export NCCL_IGNORE_CPU_AFFINITY=1
     export NCCL_IB_QPS_PER_CONNECTION=1
-    export NCCL_IB_ROCE_VERSION_NUM=2 # make  
+    #export NCCL_IB_ROCE_VERSION_NUM=2 #
+    export NCCL_IB_GID_INDEX=1 # suggest to use this value in vultr cluster
     export LD_LIBRARY_PATH=${RCCL_HOME_DIR}/build/release:${ANP_HOME_DIR}/build:${ANP_HOME_DIR}/build/lib:$LD_LIBRARY_PATH
     export LD_PRELOAD=${ANP_HOME_DIR}/build/librccl-net.so:${RCCL_HOME_DIR}/build/release/librccl.so.1.0
+else
+    export NCCL_IB_GID_INDEX=${NCCL_IB_GID_INDEX:-"3"} 
 fi
 
 
@@ -66,4 +87,4 @@ torchrun --nnodes=${NNODES} \
          --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
         --local-ranks-filter ${LOG_RANK} \
         --role rank --tee 3 \
-        torchtitan/train.py --job.config_file ${CONFIG_FILE}
+        torchtitan/train.py --job.config_file ${CONFIG_FILE} --profiling.save_traces_folder ${SAVE_TRACES_FOLDER}

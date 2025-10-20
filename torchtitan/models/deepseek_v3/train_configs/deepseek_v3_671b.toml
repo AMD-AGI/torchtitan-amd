@@ -4,9 +4,9 @@ description = "DeepSeek-V3 671B model training"
 print_args = true
 
 [profiling]
-enable_profiling = true
-save_traces_folder = "24layers-ep8-pp4-vpp3-bs16-trace-fsdp"
-profile_freq = 6
+enable_profiling = false
+save_traces_folder = "dsv3_671b_trace"
+profile_freq = 6     # 6 for 16 N, 7 for 32N, 8 for 64N, 9 for 64N gbs4096  
 enable_memory_snapshot = false
 save_memory_snapshot_folder = "memory_snapshot"
 profile_ranks = [0, 31]     
@@ -17,25 +17,25 @@ log_freq = 1
 disable_color_printing = false
 enable_tensorboard = false
 save_tb_folder = "tb"
-enable_wandb = false
+enable_wandb = true
 
 [model]
 name = "deepseek_v3"
 flavor = "671B"
 hf_assets_path = "./assets/hf/DeepSeek-V3.1-Base"
-converters = ["float8"]
-use_turbo_fp8_gemm = false # use turbo fp8 gemm on rocm
+# converters = ["float8"] 
+use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 force_uniform_routing = true #  force uniform routing for MoE for benchmark test only, disable it for real training workload
 use_aiter_attention = true 
 use_classical_attn = true # use GQA/MHA instead of MLA
 
 [optimizer]
 name = "AdamW"
-lr = 2.2e-4
+lr = 5.0e-6 
 eps = 1e-8
 
 [lr_scheduler]
-warmup_steps = 2  # lr scheduler warm up, normally 20% of the train steps
+warmup_steps = 1000  # Long warmup for FP8 stability
 decay_ratio = 0.8  # lr scheduler decay ratio, 80% of the train steps
 decay_type = "cosine"
 min_lr_factor = 0.1
@@ -45,12 +45,13 @@ init_timeout_seconds = 600  # change init
 train_timeout_seconds = 600   
 
 [training]
-local_batch_size = 8
+local_batch_size = 32
+# global_batch_size = 4096
 seq_len = 4096
-max_norm = 1.0  # grad norm clipping
-steps = 10
+max_norm = 0.3  
+steps = 10000
 # compile = false
-dataset = "c4_test"  # supported datasets: c4_test (2K), c4 (177M)
+dataset = "c4_local"  # c4_local, c4_test, supported datasets: c4_test (2K), c4 (177M)
 
 [parallelism]
 data_parallel_replicate_degree = 1
@@ -81,10 +82,10 @@ selective_ac_option = 'op'  # 'int' = ac every positive int layer or 'op', ac ba
 
 [compile]
 enable=true
-components = ["loss"] # ["model", "loss"], currently we doesn't support compile model
+components = ["model", "loss"] # ["model", "loss"]
 
 [float8]
-enable_fsdp_float8_all_gather = false
-precompute_float8_dynamic_scale_for_fsdp = false
-filter_fqns = ["output", "router.gate"]
+enable_fsdp_float8_all_gather = true
+precompute_float8_dynamic_scale_for_fsdp = true
+filter_fqns = ["output", "router.gate"] # "wq_a", "wq_b", "wkv_a", "wkv_b", "wo" 
 moe_fqns = ["experts"]

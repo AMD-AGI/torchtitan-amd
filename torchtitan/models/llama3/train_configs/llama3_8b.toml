@@ -7,8 +7,9 @@ description = "Llama 3 8B training"
 
 [profiling]
 enable_profiling = true
-save_traces_folder = "profile_trace"
-profile_freq = 100
+save_traces_folder = "profile_trace_llama3_8B"
+profile_freq = 6
+profile_ranks = [0]
 
 [metrics]
 log_freq = 1
@@ -19,7 +20,7 @@ save_tb_folder = "tb"
 name = "llama3"
 flavor = "8B"
 hf_assets_path = "./assets/hf/Llama-3.1-8B"
-converters = ["float8"]
+# converters = ["float8"]
 use_aiter_attention = true 
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 
@@ -32,7 +33,7 @@ eps = 1e-8
 warmup_steps = 2  # lr scheduler warm up
 
 [training]
-local_batch_size = 16
+local_batch_size = 10
 seq_len = 8192
 max_norm = 1.0  # grad norm clipping
 steps = 10
@@ -53,6 +54,11 @@ last_save_model_only = true
 export_dtype = "float32"
 async_mode = "disabled" # ["disabled", "async", "async_with_pinned_mem"]
 
+[comm]
+init_timeout_seconds = 600  # change init 
+train_timeout_seconds = 600   
+
+
 [compile]
 enable=true
 components = ["model", "loss"]
@@ -61,6 +67,10 @@ components = ["model", "loss"]
 mode = "selective"  # ["none", "selective", "full"]
 selective_ac_option = "op"  # "int" = ac every positive int layer or 'op', ac based on ops policy
 
+[float8]
+enable_fsdp_float8_all_gather = false
+precompute_float8_dynamic_scale_for_fsdp = true
+filter_fqns = ["output"]
 
 
 [validation]

@@ -21,7 +21,7 @@ save_tb_folder = "tb"
 name = "llama3"
 flavor = "405B"
 hf_assets_path = "./assets/hf/Llama-3.1-405B"
-converters = ["float8"]
+# converters = ["float8"]
 use_aiter_attention = true 
 use_turbo_fp8_gemm = true # use turbo fp8 gemm on rocm
 
@@ -35,6 +35,7 @@ warmup_steps = 2  # lr scheduler warm up, normally 20% of the train steps
 
 [training]
 local_batch_size = 2
+global_batch_size = 128
 seq_len = 8192
 max_norm = 1.0  # grad norm clipping
 steps = 10
@@ -57,7 +58,12 @@ export_dtype = "float32"
 async_mode = "disabled" # ["disabled", "async", "async_with_pinned_mem"]
 
 [activation_checkpoint]
-mode = "full" # ["none", "selective", "full"]
+mode = "selective" # ["none", "selective", "full"]
+selective_ac_option = '-16'
+
+[comm]
+init_timeout_seconds = 600  # change init 
+train_timeout_seconds = 600   
 
 [compile]
 enable=true
