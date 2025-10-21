@@ -141,7 +141,7 @@ class Attention(nn.Module):
         self.use_turbo_fp8_gemm = model_args.use_turbo_fp8_gemm
         self.use_aiter_attention = model_args.use_aiter_attention
         self.n_kv_heads = (
-            model_args.n_heads5
+            model_args.n_heads
             if model_args.n_kv_heads is None
             else model_args.n_kv_heads
         )
