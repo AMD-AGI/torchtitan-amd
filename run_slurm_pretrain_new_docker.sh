@@ -1,21 +1,21 @@
 #!/bin/bash
-#SBATCH --job-name=liz
-#SBATCH --output=logs/slurm/deepseek.%j.out
-#SBATCH --nodes=1                           # Number of nodes, Adjust as necessary
+#SBATCH --job-name=titan
+#SBATCH --output=logs/%j.out
+#SBATCH --nodes=2                            # Number of nodes, Adjust as necessary
 #SBATCH --ntasks-per-node=1                  # One task per GPU -> total 8 tasks per node
 #SBATCH --cpus-per-task=96                   # assign all CPUs to the job
 #SBATCH --gres=gpu:8                         # Request 8 GPUs per node
 #SBATCH --time=01:00:00                      # Adjust as necessary
-#SBATCH --nodelist=chi[2600]
-##SBATCH --nodelist=chi[2602,2603,2605,2610,2613,2617,2618,2630,2631,2643,2644,2645,2646,2649,2661,2672]  # modify based on your reservation settings
+#SBATCH --nodelist=useocpm2m-401-[028,052,098,122,142,144,147] # modify based on your reservation settings
 ##SBATCH --reservation=vultr-mi325x-torch # modify based on your reservation settings
 
 # Setup your keys for HF and WADNB
-export HF_TOKEN=${HF_TOKEN:=""}    # please set your HF token here or via environment variable
+export HF_TOKEN=${HF_TOKEN:="your_hf_token"}    # please set your HF token here
 # export WANDB_API_KEY=${WANDB_API_KEY:="your_wandb_token"}    # please set your WANDB token here
+
 # Setup the mount points for the host and container
-export HOST_MOUNT=${HOST_MOUNT:="/mnt/models/liz"}     # change this path to host dir intend to be attached to the docker
-export CONTAINER_MOUNT=${CONTAINER_MOUNT:="/workspace/liz"}      # change this path to development workspace path inside the docker
+export HOST_MOUNT=${HOST_MOUNT:="/mnt/models/your_path"}     # change this path to host dir intend to be attached to the docker
+export CONTAINER_MOUNT=${CONTAINER_MOUNT:="/workspace"}      # change this path to development workspace path inside the docker
 
 MODEL_NAME=llama3-8b # llama4-scout, llama4-maverick, deepseek-16b, llama3, deepseek-236b, deepseek-671b
 # Setup the config file and repo id for the model
@@ -141,7 +141,8 @@ docker run --rm \
     export TMP_BUILD_DIR=\$CONTAINER_MOUNT/torchtitan-amd/3rdparty/build/\$HOST_NAME ; \
     mkdir -p \$TMP_BUILD_DIR ; \
     export AITER_JIT_DIR=\$TMP_BUILD_DIR/\${CACHE_TAG}_aiter_cache ; \
-    echo AITER_JIT_DIR is \$AITER_JIT_DIR ; \ 
+    echo AITER_JIT_DIR is \$AITER_JIT_DIR ; \
+    pip3 install -e . ; \
     python scripts/download_hf_assets.py --assets tokenizer --repo_id \$REPO_ID --hf_token=\$HF_TOKEN ; \
     export NCCL_PXN_DISABLE=0 ; \
     export NCCL_P2P_NET_CHUNKSIZE=262144 ; \

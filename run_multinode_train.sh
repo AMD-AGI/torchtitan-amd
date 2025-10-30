@@ -87,4 +87,4 @@ torchrun --nnodes=${NNODES} \
          --rdzv_endpoint="${MASTER_ADDR}:${MASTER_PORT}" \
         --local-ranks-filter ${LOG_RANK} \
         --role rank --tee 3 \
-        torchtitan/train.py --job.config_file ${CONFIG_FILE} --profiling.save_traces_folder ${SAVE_TRACES_FOLDER}
+        torchtitan/train.py --job.config_file ${CONFIG_FILE}
