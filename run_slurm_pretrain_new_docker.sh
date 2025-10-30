@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=96                   # assign all CPUs to the job
 #SBATCH --gres=gpu:8                         # Request 8 GPUs per node
 #SBATCH --time=01:00:00                      # Adjust as necessary
-#SBATCH --nodelist=useocpm2m-401-[028,052,098,122,142,144,147] # modify based on your reservation settings
+##SBATCH --nodelist=useocpm2m-401-[028,052,098,122,142,144,147] # modify based on your reservation settings
 ##SBATCH --reservation=vultr-mi325x-torch # modify based on your reservation settings
 
 # Setup your keys for HF and WADNB
