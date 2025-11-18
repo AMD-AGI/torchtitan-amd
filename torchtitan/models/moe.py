@@ -25,7 +25,7 @@ if is_hip():
         ScalingGranularity,
     )
 
-    from primus_turbo.pytorch.ops import grouped_gemm_fp8, grouped_gemm_fp8_blockwise
+    from primus_turbo.pytorch.ops import grouped_gemm_fp8
 
 
 # Simple global FP8 configuration for MoE
